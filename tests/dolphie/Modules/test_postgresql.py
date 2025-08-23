@@ -107,3 +107,54 @@ def test_postgresql_default_port():
         assert parser.config.port == 5432
     finally:
         sys.argv = original_argv
+
+
+def test_postgresql_kill_query():
+    """Test that PostgreSQL kill query uses pg_terminate_backend"""
+    from dolphie.Modules.ArgumentParser import Config
+    from dolphie.Dolphie import Dolphie
+    from unittest.mock import MagicMock
+    
+    config = Config(
+        app_version='6.10.2',
+        database_type='postgresql',
+        host='localhost',
+        port=5432,
+        user='test',
+        password='test'
+    )
+    
+    mock_app = MagicMock()
+    dolphie = Dolphie(config, mock_app)
+    
+    # Mock connection source
+    dolphie.connection_source = ConnectionSource.postgresql
+    
+    kill_query = dolphie.build_kill_query(12345)
+    assert kill_query == "SELECT pg_terminate_backend(12345)"
+
+
+def test_mysql_kill_query_still_works():
+    """Test that MySQL kill query still works"""
+    from dolphie.Modules.ArgumentParser import Config
+    from dolphie.Dolphie import Dolphie
+    from unittest.mock import MagicMock
+    
+    config = Config(
+        app_version='6.10.2',
+        database_type='mysql',
+        host='localhost',
+        port=3306,
+        user='test',
+        password='test'
+    )
+    
+    mock_app = MagicMock()
+    dolphie = Dolphie(config, mock_app)
+    
+    # Mock connection source and global variables
+    dolphie.connection_source = ConnectionSource.mysql
+    dolphie.global_variables = {}
+    
+    kill_query = dolphie.build_kill_query(12345)
+    assert kill_query == "KILL 12345"

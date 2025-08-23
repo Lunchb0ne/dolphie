@@ -143,7 +143,7 @@ class Dolphie:
         }
         
         # Choose the appropriate database adapter based on database type
-        if config.database_type == "postgresql":
+        if self.database_type == "postgresql":
             self.main_db_connection = PostgreSQLDatabase(**db_connection_args)
             self.secondary_db_connection = PostgreSQLDatabase(**db_connection_args, save_connection_id=False)
             self.host_distro = "PostgreSQL"
