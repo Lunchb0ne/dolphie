@@ -17,8 +17,9 @@ import dolphie.Modules.MetricManager as MetricManager
 from dolphie.Modules.ArgumentParser import Config
 from dolphie.Modules.Functions import load_host_cache_file
 from dolphie.Modules.MySQL import ConnectionSource, Database
+from dolphie.Modules.PostgreSQL import PostgreSQLDatabase
 from dolphie.Modules.PerformanceSchemaMetrics import PerformanceSchemaMetrics
-from dolphie.Modules.Queries import MySQLQueries
+from dolphie.Modules.Queries import MySQLQueries, PostgreSQLQueries
 
 
 class Dolphie:
@@ -35,6 +36,7 @@ class Dolphie:
         self.password = config.password
         self.host = config.host
         self.port = config.port
+        self.database_type = config.database_type
         self.socket = config.socket
         self.ssl = config.ssl
         self.host_cache_file = config.host_cache_file
@@ -139,9 +141,17 @@ class Dolphie:
             "auto_connect": False,
             "daemon_mode": self.daemon_mode,
         }
-        self.main_db_connection = Database(**db_connection_args)
-        # Secondary connection is for ad-hoc commands that are not a part of the worker thread
-        self.secondary_db_connection = Database(**db_connection_args, save_connection_id=False)
+        
+        # Choose the appropriate database adapter based on database type
+        if config.database_type == "postgresql":
+            self.main_db_connection = PostgreSQLDatabase(**db_connection_args)
+            self.secondary_db_connection = PostgreSQLDatabase(**db_connection_args, save_connection_id=False)
+            self.host_distro = "PostgreSQL"
+        else:
+            # Default to MySQL for mysql/proxysql/mariadb
+            self.main_db_connection = Database(**db_connection_args)
+            self.secondary_db_connection = Database(**db_connection_args, save_connection_id=False)
+            self.host_distro = "MySQL"
 
         # Misc variables
         self.host_distro: str = "MySQL"
@@ -187,14 +197,63 @@ class Dolphie:
 
         self.connection_source = self.main_db_connection.source
         self.connection_source_alt = self.connection_source
+        
         if self.connection_source == ConnectionSource.proxysql:
             self.host_distro = ConnectionSource.proxysql
+            self.host_with_port = f"{self.host}:{self.port}"
+        elif self.connection_source == ConnectionSource.postgresql:
+            self.host_distro = ConnectionSource.postgresql
             self.host_with_port = f"{self.host}:{self.port}"
 
         self.metric_manager.connection_source = self.connection_source
 
         # Add host to tab setup file if it doesn't exist
         self.add_host_to_tab_setup_file()
+
+    def configure_database_variables(self):
+        """Configure database-specific variables based on connection type"""
+        if self.connection_source == ConnectionSource.postgresql:
+            self.configure_postgresql_variables()
+        else:
+            self.configure_mysql_variables()
+
+    def configure_postgresql_variables(self):
+        """Configure PostgreSQL-specific variables"""
+        # Get PostgreSQL settings equivalent to MySQL global variables
+        self.main_db_connection.execute(PostgreSQLQueries.variables)
+        pg_settings = {row["variable_name"]: row["value"] for row in self.main_db_connection.fetchall()}
+        self.global_variables = pg_settings
+        
+        # PostgreSQL doesn't have clusters like MySQL, but we can detect cloud providers
+        if ".rds.amazonaws.com" in self.host:
+            self.host_distro = "Amazon RDS (PostgreSQL)"
+            self.host_with_port = f"{self.host.split('.rds.amazonaws.com')[0]}:{self.port}"
+        elif ".postgres.database.azure.com" in self.host:
+            self.host_distro = "Azure PostgreSQL"
+            self.host_with_port = f"{self.host.split('.postgres.database.azure.com')[0]}:{self.port}"
+        else:
+            self.host_distro = "PostgreSQL"
+            self.host_with_port = f"{self.host}:{self.port}"
+        
+        # Set PostgreSQL-specific attributes
+        self.galera_cluster = False
+        self.group_replication = False
+        self.innodb_cluster = False
+        self.innodb_cluster_read_replica = False
+        self.replicaset = False
+        self.performance_schema_enabled = False  # PostgreSQL uses pg_stat_* views instead
+        self.use_performance_schema_for_processlist = False
+        
+        # Get PostgreSQL version
+        self.main_db_connection.execute("SELECT version()")
+        version_result = self.main_db_connection.fetchone()
+        if version_result:
+            self.host_version = version_result["version"].split(" ")[1]  # Extract version number
+        
+        # Get server identifier (equivalent to server_uuid in MySQL)
+        self.main_db_connection.execute("SELECT current_setting('cluster_name') as cluster_name")
+        cluster_result = self.main_db_connection.fetchone()
+        self.server_uuid = cluster_result["cluster_name"] if cluster_result else None
 
     def configure_mysql_variables(self):
         global_variables = self.global_variables
@@ -275,6 +334,11 @@ class Dolphie:
         return "MySQL", ConnectionSource.mysql
 
     def build_kill_query(self, thread_id: int) -> str:
+        if self.connection_source == ConnectionSource.postgresql:
+            # PostgreSQL uses pg_terminate_backend() to kill connections
+            return f"SELECT pg_terminate_backend({thread_id})"
+        
+        # MySQL/MariaDB/ProxySQL logic
         is_rds = "rdsdb" in self.global_variables.get("basedir", "").casefold()
         is_aurora = self.global_variables.get("aurora_version")
         is_azure = self.global_variables.get("aad_auth_only")
@@ -345,6 +409,10 @@ class Dolphie:
                 self.tab_setup_available_hosts.append(host[:-1])  # remove the \n
 
     def is_mysql_version_at_least(self, target: str, use_version: str = None):
+        """Check if MySQL/MariaDB version is at least the target version"""
+        if self.connection_source == ConnectionSource.postgresql:
+            return False  # This method is MySQL-specific
+        
         version = self.host_version
         if use_version:
             version = use_version
@@ -353,6 +421,27 @@ class Dolphie:
         parsed_target = parse_version(target)
 
         return parsed_source >= parsed_target
+
+    def is_postgresql_version_at_least(self, target: str, use_version: str = None):
+        """Check if PostgreSQL version is at least the target version"""
+        if self.connection_source != ConnectionSource.postgresql:
+            return False  # This method is PostgreSQL-specific
+        
+        version = self.host_version
+        if use_version:
+            version = use_version
+
+        parsed_source = parse_version(version)
+        parsed_target = parse_version(target)
+
+        return parsed_source >= parsed_target
+
+    def is_version_at_least(self, target: str, use_version: str = None):
+        """Generic version checking method that works for any database type"""
+        if self.connection_source == ConnectionSource.postgresql:
+            return self.is_postgresql_version_at_least(target, use_version)
+        else:
+            return self.is_mysql_version_at_least(target, use_version)
 
     def parse_server_version(self, version: str) -> str:
         if not version:

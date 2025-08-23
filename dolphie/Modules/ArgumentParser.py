@@ -50,6 +50,7 @@ class Config:
     password: str = None
     host: str = "localhost"
     port: int = 3306
+    database_type: str = "mysql"  # mysql, postgresql, proxysql
     socket: str = None
     ssl: Dict = field(default_factory=dict)
     ssl_mode: str = None
@@ -200,8 +201,8 @@ Dolphie's config supports these options under [dolphie] section:
             type=str,
             nargs="?",
             help=(
-                "Use a URI string for credentials (mysql/proxysql) - format: mysql://user:password@host:port "
-                f"(port is optional with default {self.config.port}, or 6032 for ProxySQL)"
+                "Use a URI string for credentials (mysql/proxysql/postgresql) - format: mysql://user:password@host:port "
+                f"(port is optional with default {self.config.port}, 6032 for ProxySQL, or 5432 for PostgreSQL)"
             ),
         )
 
@@ -578,7 +579,7 @@ Dolphie's config supports these options under [dolphie] section:
 
         # We need to loop through all options and set non-login options so we can use them for the logic below
         for option in self.config_object_options.keys():
-            if option not in login_options and options[option]:
+            if option not in login_options and options.get(option):
                 self.set_config_value("command-line", option, options[option])
 
         if self.config.credential_profile and self.config.credential_profile not in self.config.credential_profiles:
@@ -648,11 +649,16 @@ Dolphie's config supports these options under [dolphie] section:
 
                 if parsed_result.scheme == "mysql":
                     port = parsed_result.port or 3306
+                    self.set_config_value("uri", "database_type", "mysql")
                 elif parsed_result.scheme == "proxysql":
                     port = parsed_result.port or 6032
+                    self.set_config_value("uri", "database_type", "proxysql")
+                elif parsed_result.scheme == "postgresql":
+                    port = parsed_result.port or 5432
+                    self.set_config_value("uri", "database_type", "postgresql")
                 else:
                     self.exit(
-                        "Invalid URI scheme: Only 'mysql' or 'proxysql' are supported (see --help for more information)"
+                        "Invalid URI scheme: Only 'mysql', 'proxysql', or 'postgresql' are supported (see --help for more information)"
                     )
 
                 self.set_config_value("uri", "user", parsed_result.username)
