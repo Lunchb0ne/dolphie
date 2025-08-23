@@ -37,6 +37,7 @@ class Dolphie:
         self.host = config.host
         self.port = config.port
         self.database_type = config.database_type
+        self.database = config.database
         self.socket = config.socket
         self.ssl = config.ssl
         self.host_cache_file = config.host_cache_file
@@ -144,6 +145,9 @@ class Dolphie:
         
         # Choose the appropriate database adapter based on database type
         if self.database_type == "postgresql":
+            # Add database parameter for PostgreSQL connections
+            if self.database:
+                db_connection_args["database"] = self.database
             self.main_db_connection = PostgreSQLDatabase(**db_connection_args)
             self.secondary_db_connection = PostgreSQLDatabase(**db_connection_args, save_connection_id=False)
             self.host_distro = "PostgreSQL"

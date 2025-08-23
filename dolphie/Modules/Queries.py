@@ -753,7 +753,7 @@ class PostgreSQLQueries:
     table_stats: str = """
         SELECT 
             schemaname,
-            tablename,
+            relname as tablename,
             seq_scan,
             seq_tup_read,
             idx_scan,
@@ -784,8 +784,8 @@ class PostgreSQLQueries:
     index_stats: str = """
         SELECT 
             schemaname,
-            tablename,
-            indexname,
+            relname as tablename,
+            indexrelname as indexname,
             idx_scan,
             idx_tup_read,
             idx_tup_fetch

@@ -51,6 +51,7 @@ class Config:
     host: str = "localhost"
     port: int = 3306
     database_type: str = "mysql"  # mysql, postgresql, proxysql
+    database: str = None
     socket: str = None
     ssl: Dict = field(default_factory=dict)
     ssl_mode: str = None
@@ -665,6 +666,13 @@ Dolphie's config supports these options under [dolphie] section:
                 self.set_config_value("uri", "password", parsed_result.password)
                 self.set_config_value("uri", "host", parsed_result.hostname)
                 self.set_config_value("uri", "port", port)
+                
+                # Extract database name from path
+                if parsed_result.path and len(parsed_result.path) > 1:
+                    # Remove leading slash and get database name
+                    database = parsed_result.path[1:].split('/')[0]
+                    if database:
+                        self.set_config_value("uri", "database", database)
             except Exception as e:
                 self.exit(f"Invalid URI: {e} (see --help for more information)")
 

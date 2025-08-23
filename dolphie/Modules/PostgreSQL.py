@@ -20,6 +20,7 @@ class PostgreSQLDatabase:
         socket: str,
         port: int,
         ssl: str,
+        database: str = None,
         save_connection_id: bool = True,
         auto_connect: bool = True,
         daemon_mode: bool = False,
@@ -31,6 +32,7 @@ class PostgreSQLDatabase:
         self.socket = socket
         self.port = port
         self.ssl = ssl
+        self.database = database
         self.save_connection_id = save_connection_id
         self.daemon_mode = daemon_mode
 
@@ -60,6 +62,10 @@ class PostgreSQLDatabase:
                 "connect_timeout": 5,
                 "application_name": "Dolphie",
             }
+
+            # Add database if specified
+            if self.database:
+                conn_params["database"] = self.database
 
             # Handle SSL mode
             if self.ssl:
