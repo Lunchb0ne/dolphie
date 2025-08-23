@@ -193,15 +193,17 @@ class PostgreSQLDatabase:
         try:
             if self.cursor:
                 self.cursor.close()
-                self.cursor = None
         except psycopg2.Error:
             pass
+        finally:
+            self.cursor = None
 
         try:
             if self.connection:
                 self.connection.close()
-                self.connection = None
         except psycopg2.Error:
             pass
+        finally:
+            self.connection = None
 
         self.has_connected = False
