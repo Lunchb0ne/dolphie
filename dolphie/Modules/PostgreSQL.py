@@ -54,13 +54,18 @@ class PostgreSQLDatabase:
     def connect(self, reconnect_attempt: bool = False):
         try:
             # Build connection string
+            # Set application_name to include version if available
+            app_name = "Dolphie"
+            app_version = getattr(self.app, "app_version", None)
+            if app_version:
+                app_name = f"Dolphie {app_version}"
             conn_params = {
                 "host": self.host,
                 "user": self.user,
                 "password": self.password,
                 "port": int(self.port),
                 "connect_timeout": 5,
-                "application_name": "Dolphie",
+                "application_name": app_name,
             }
 
             # Add database if specified
