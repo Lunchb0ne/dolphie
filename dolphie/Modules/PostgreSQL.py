@@ -99,8 +99,16 @@ class PostgreSQLDatabase:
             error_message = str(e).strip()
             
             if not reconnect_attempt:
-                logger.error(f"PostgreSQL connection error: {error_message}")
-                raise ManualException(error_message)
+                # Build connection details string
+                if self.socket:
+                    conn_details = f"socket '{self.socket}'"
+                else:
+                    conn_details = f"{self.host}:{self.port}"
+                full_error_message = (
+                    f"PostgreSQL connection failure to {conn_details} - {error_message}"
+                )
+                logger.error(full_error_message)
+                raise ManualException(full_error_message)
 
     def execute(self, query, values=None, ignore_error=False):
         if not self.is_connected():
