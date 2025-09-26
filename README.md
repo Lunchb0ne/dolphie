@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://user-images.githubusercontent.com/13244625/187600748-19d2ad15-42e8-4f9c-ada5-a153cdcf4070.png" width="120"><br>
-  Your single pane of glass for real-time analytics into MySQL/MariaDB & ProxySQL<br><br>
+  Your single pane of glass for real-time analytics into MySQL/MariaDB/PostgreSQL & ProxySQL<br><br>
   <img src="https://github.com/charles-001/dolphie/assets/13244625/88a41290-f52c-4b8e-97f8-3b7ef5096eae" width="30">
   <img src="https://github.com/charles-001/dolphie/assets/13244625/1d94502a-9abf-4436-a7d0-cb2b08c105c1" width="30">
   <img src="https://github.com/charles-001/dolphie/assets/13244625/9b1aadc8-cabb-4256-92f9-fe4d04451b83" width="30">
@@ -52,7 +52,7 @@ $ docker exec -it dolphie dolphie --tab-setup
 
 ```
 positional arguments:
-  uri                   Use a URI string for credentials (mysql/proxysql) - format: mysql://user:password@host:port (port is optional with default 3306, or 6032 for ProxySQL)
+  uri                   Use a URI string for credentials (mysql/proxysql/postgresql) - format: mysql://user:password@host:port (port is optional with default 3306, 6032 for ProxySQL, or 5432 for PostgreSQL)
 
 options:
   --help                show this help message and exit
@@ -191,6 +191,12 @@ Dolphie's config supports these options under [dolphie] section:
 - AWS RDS
 - Azure MariaDB
 
+## Supported PostgreSQL versions
+
+- PostgreSQL 9.6+
+- AWS RDS/Aurora PostgreSQL
+- Azure PostgreSQL
+
 ## Supported ProxySQL versions
 
 - ProxySQL 2.6+ (could work on previous versions but not tested)
@@ -211,6 +217,21 @@ Note: Use `admin` user instead of `stats` user so you can use all features
 2. Global SELECT access (good for explaining queries, listing all databases, etc)
 3. REPLICATION CLIENT/REPLICATION SLAVE
 4. SUPER (required if you want to kill queries)
+
+## PostgreSQL Grants required
+
+#### Least privilege
+
+1. CONNECT to database
+2. SELECT on `pg_stat_activity`, `pg_stat_database`, `pg_settings`
+3. SELECT on `pg_stat_replication` (for replication monitoring)
+
+#### Recommended
+
+1. CONNECT to database
+2. SELECT on all `pg_stat_*` and `pg_catalog` views
+3. `pg_read_all_stats` role (PostgreSQL 10+)
+4. `pg_signal_backend` role (required if you want to cancel/terminate queries)
 
 ## Record & Replay
 

@@ -286,7 +286,7 @@ class DolphieApp(App):
             }
 
             if not dolphie.server_uuid:
-                dolphie.configure_mysql_variables()
+                dolphie.configure_database_variables()
         elif dolphie.connection_source == ConnectionSource.proxysql:
             dolphie.host_version = dolphie.parse_server_version(dolphie.global_variables.get("admin-version"))
             dolphie.proxysql_command_stats = replay_event_data.command_stats
@@ -522,7 +522,7 @@ class DolphieApp(App):
             self.tab_manager.update_connection_status(tab=tab, connection_status=ConnectionStatus.connected)
             dolphie.host_version = dolphie.parse_server_version(dolphie.global_variables.get("version"))
             dolphie.get_group_replication_metadata()
-            dolphie.configure_mysql_variables()
+            dolphie.configure_database_variables()
             dolphie.validate_metadata_locks_enabled()
 
         global_status = dolphie.main_db_connection.fetch_status_and_variables("status")

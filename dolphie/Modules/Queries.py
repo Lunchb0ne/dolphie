@@ -658,3 +658,210 @@ class MySQLQueries:
     innodb_status: str = "SHOW ENGINE INNODB STATUS"
     show_replicas: str = "SHOW REPLICAS"
     show_slave_hosts: str = "SHOW SLAVE HOSTS"
+
+
+@dataclass
+class PostgreSQLQueries:
+    """PostgreSQL-specific queries for Dolphie"""
+    
+    # Basic system information
+    variables: str = """
+        SELECT 
+            name as Variable_name,
+            setting as Value
+        FROM 
+            pg_settings
+        WHERE 
+            name IN (
+                'version', 'port', 'max_connections', 'shared_buffers',
+                'effective_cache_size', 'work_mem', 'maintenance_work_mem',
+                'checkpoint_completion_target', 'wal_buffers', 'default_statistics_target',
+                'random_page_cost', 'effective_io_concurrency', 'max_worker_processes',
+                'max_parallel_workers_per_gather', 'max_parallel_workers',
+                'max_parallel_maintenance_workers'
+            )
+    """
+    
+    # Database activity/processlist equivalent
+    processlist: str = """
+        SELECT 
+            pid as id,
+            usename as user,
+            datname as db,
+            client_addr::text as host,
+            application_name,
+            state,
+            EXTRACT(EPOCH FROM (NOW() - query_start))::int as time,
+            query,
+            wait_event_type,
+            wait_event
+        FROM 
+            pg_stat_activity 
+        WHERE 
+            pid != pg_backend_pid()
+            AND state IS NOT NULL
+        ORDER BY 
+            query_start ASC
+    """
+    
+    # Database statistics
+    database_stats: str = """
+        SELECT 
+            datname as database_name,
+            numbackends as connections,
+            xact_commit as transactions_committed,
+            xact_rollback as transactions_rolled_back,
+            blks_read as blocks_read,
+            blks_hit as blocks_hit,
+            tup_returned as tuples_returned,
+            tup_fetched as tuples_fetched,
+            tup_inserted as tuples_inserted,
+            tup_updated as tuples_updated,
+            tup_deleted as tuples_deleted,
+            conflicts as conflicts,
+            temp_files as temp_files,
+            temp_bytes as temp_bytes,
+            deadlocks as deadlocks
+        FROM 
+            pg_stat_database
+        WHERE 
+            datname NOT IN ('template0', 'template1')
+    """
+    
+    # Replication status (for primary servers)
+    replication_status: str = """
+        SELECT 
+            client_addr,
+            client_hostname,
+            client_port,
+            state,
+            sent_lsn,
+            write_lsn,
+            flush_lsn,
+            replay_lsn,
+            write_lag,
+            flush_lag,
+            replay_lag,
+            sync_priority,
+            sync_state,
+            application_name
+        FROM 
+            pg_stat_replication
+    """
+    
+    # Table statistics
+    table_stats: str = """
+        SELECT 
+            schemaname,
+            relname as tablename,
+            seq_scan,
+            seq_tup_read,
+            idx_scan,
+            idx_tup_fetch,
+            n_tup_ins as inserts,
+            n_tup_upd as updates,
+            n_tup_del as deletes,
+            n_tup_hot_upd as hot_updates,
+            n_live_tup as live_tuples,
+            n_dead_tup as dead_tuples,
+            n_mod_since_analyze,
+            last_vacuum,
+            last_autovacuum,
+            last_analyze,
+            last_autoanalyze,
+            vacuum_count,
+            autovacuum_count,
+            analyze_count,
+            autoanalyze_count
+        FROM 
+            pg_stat_user_tables
+        ORDER BY 
+            seq_scan + idx_scan DESC
+        LIMIT 100
+    """
+    
+    # Index statistics
+    index_stats: str = """
+        SELECT 
+            schemaname,
+            relname as tablename,
+            indexrelname as indexname,
+            idx_scan,
+            idx_tup_read,
+            idx_tup_fetch
+        FROM 
+            pg_stat_user_indexes
+        ORDER BY 
+            idx_scan DESC
+        LIMIT 100
+    """
+    
+    # Slow queries (equivalent to slow query log)
+    slow_queries: str = """
+        SELECT 
+            userid::regrole as user,
+            dbid,
+            query,
+            calls,
+            total_time,
+            mean_time,
+            min_time,
+            max_time,
+            stddev_time,
+            rows,
+            100.0 * shared_blks_hit / nullif(shared_blks_hit + shared_blks_read, 0) as hit_percent
+        FROM 
+            pg_stat_statements
+        ORDER BY 
+            total_time DESC
+        LIMIT 50
+    """
+    
+    # Lock information
+    locks: str = """
+        SELECT 
+            l.pid,
+            l.mode,
+            l.locktype,
+            l.database,
+            l.relation::regclass as relation,
+            l.page,
+            l.tuple,
+            l.virtualxid,
+            l.transactionid,
+            l.granted,
+            a.usename,
+            a.query,
+            a.state,
+            a.query_start
+        FROM 
+            pg_locks l
+        LEFT JOIN 
+            pg_stat_activity a ON l.pid = a.pid
+        WHERE 
+            NOT l.granted
+        ORDER BY 
+            l.pid
+    """
+    
+    # Connection count by state
+    connection_stats: str = """
+        SELECT 
+            state,
+            count(*) as count
+        FROM 
+            pg_stat_activity
+        WHERE 
+            state IS NOT NULL
+        GROUP BY 
+            state
+        ORDER BY 
+            count DESC
+    """
+    
+    # Version information
+    version: str = "SELECT version()"
+    
+    # Kill query/connection
+    kill_query: str = "SELECT pg_cancel_backend(%s)"
+    kill_connection: str = "SELECT pg_terminate_backend(%s)"
