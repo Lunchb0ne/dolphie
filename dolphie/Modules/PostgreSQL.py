@@ -71,10 +71,17 @@ class PostgreSQLDatabase:
             if self.ssl:
                 if isinstance(self.ssl, dict):
                     ssl_mode = self.ssl.get("ssl_mode", "prefer")
+                    conn_params["sslmode"] = ssl_mode
+                    # Map SSL certificate parameters if present
+                    if "cert" in self.ssl:
+                        conn_params["sslcert"] = self.ssl["cert"]
+                    if "key" in self.ssl:
+                        conn_params["sslkey"] = self.ssl["key"]
+                    if "ca" in self.ssl:
+                        conn_params["sslrootcert"] = self.ssl["ca"]
                 else:
                     ssl_mode = "prefer"
-                conn_params["sslmode"] = ssl_mode
-
+                    conn_params["sslmode"] = ssl_mode
             # Handle Unix socket
             if self.socket:
                 conn_params["host"] = self.socket
