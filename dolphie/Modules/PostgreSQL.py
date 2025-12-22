@@ -198,16 +198,8 @@ class PostgreSQLDatabase:
             return self.cursor.fetchone()
         return None
 
-    def is_connected(self):
-        try:
-            if self.connection and not self.connection.closed:
-                # Test the connection with a simple query
-                with self.connection.cursor() as test_cursor:
-                    test_cursor.execute("SELECT 1")
-                return True
-        except (psycopg2.Error, AttributeError):
-            pass
-        return False
+    def is_connected(self) -> bool:
+        return self.connection and not self.connection.closed
 
     def close(self):
         try:
