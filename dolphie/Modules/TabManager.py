@@ -214,7 +214,10 @@ class Tab:
                 or self.dolphie.replay_file,
             )
 
-        elif self.dolphie.connection_source == ConnectionSource.proxysql:
+        elif (
+            self.dolphie.connection_source == ConnectionSource.proxysql
+            or self.dolphie.connection_source == ConnectionSource.postgresql
+        ):
             self.dashboard_section_5.display = False
 
     def toggle_metric_graph_tabs_display(self):
@@ -516,7 +519,13 @@ class TabManager:
         self.app.query_one("#statements_summary_title", Label).update(panels.statements_summary.title)
 
         # Loop the metric instances and create the graph tabs
-        metric_manager = MetricManager.MetricManager(None)
+        if self.config.db_type == ConnectionSource.postgresql:
+            from dolphie.Modules.PostgreSQL import PostgreSQLMetricManager
+
+            metric_manager = PostgreSQLMetricManager(None)
+        else:
+            metric_manager = MetricManager.MetricManager(None)
+
         metric_graph_tabs = self.app.query_one("#metric_graph_tabs", TabbedContent)
         for metric_instance_name, metric_instance in metric_manager.metrics.__dict__.items():
             metric_tab_name = metric_instance.tab_name

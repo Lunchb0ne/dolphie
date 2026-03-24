@@ -719,3 +719,100 @@ class MySQLQueries:
     innodb_status: str = "SHOW ENGINE INNODB STATUS"
     show_replicas: str = "SHOW REPLICAS"
     show_slave_hosts: str = "SHOW SLAVE HOSTS"
+
+
+@dataclass
+class PostgreSQLQueries:
+    server_version: str = "SHOW server_version"
+    uptime: str = "SELECT extract(epoch from current_timestamp - pg_postmaster_start_time())"
+
+    # Activity / Processlist
+    # PID, User, DB, Host, State, Time, Wait Event, Query
+    activity: str = """
+        SELECT
+            pid,
+            usename AS user,
+            datname AS db,
+            client_addr::text AS host,
+            state,
+            COALESCE(extract(epoch from (now() - query_start))::int, 0) AS time,
+            COALESCE(wait_event_type, '') || ':' || COALESCE(wait_event, '') AS wait_event,
+            query
+        FROM pg_stat_activity
+        WHERE pid != pg_backend_pid()
+    """
+
+    # Connection Statistics
+    connection_stats: str = """
+        SELECT
+            COUNT(*) FILTER (WHERE state = 'active') AS active_connections,
+            COUNT(*) FILTER (WHERE state = 'idle') AS idle_connections,
+            COUNT(*) AS total_connections
+        FROM pg_stat_activity
+        WHERE pid != pg_backend_pid()
+    """
+
+    # Global Database Stats (Transactions, Tuples, etc)
+    global_stats: str = """
+        SELECT
+            sum(xact_commit) as xact_commit,
+            sum(xact_rollback) as xact_rollback,
+            sum(tup_returned) as tup_returned,
+            sum(tup_fetched) as tup_fetched,
+            sum(tup_inserted) as tup_inserted,
+            sum(tup_updated) as tup_updated,
+            sum(tup_deleted) as tup_deleted,
+            sum(conflicts) as conflicts,
+            sum(deadlocks) as deadlocks
+        FROM pg_stat_database
+    """
+
+    # WAL Stats (Postgres 14+)
+    wal_stats: str = """
+        SELECT
+             wal_records,
+             wal_fpi,
+             wal_bytes,
+             wal_buffers_full,
+             wal_write,
+             wal_sync,
+             wal_write_time,
+             wal_sync_time
+        FROM pg_stat_wal
+    """
+
+    # BGWriter Stats
+    bgwriter_stats: str = "SELECT * FROM pg_stat_bgwriter"
+
+    # Replication Stats
+    replication: str = """
+        SELECT
+            pid,
+            client_addr AS host,
+            usename AS user,
+            application_name,
+            state,
+            sync_state,
+            (pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn))::int8 AS replay_lag,
+            (pg_wal_lsn_diff(pg_current_wal_lsn(), write_lsn))::int8 AS write_lag,
+            (pg_wal_lsn_diff(pg_current_wal_lsn(), flush_lsn))::int8 AS flush_lag
+        FROM
+            pg_stat_replication
+    """
+
+    # Table Health / Vacuum Stats
+    table_health: str = """
+        SELECT
+            relname as table,
+            n_live_tup,
+            n_dead_tup,
+            last_vacuum,
+            last_autovacuum,
+            last_analyze,
+            last_autoanalyze,
+            vacuum_count,
+            autovacuum_count
+        FROM pg_stat_user_tables
+        ORDER BY n_dead_tup DESC
+        LIMIT 20
+    """

@@ -11,6 +11,7 @@ class ConnectionSource:
     mysql = "MySQL"
     proxysql = "ProxySQL"
     mariadb = "MariaDB"
+    postgresql = "PostgreSQL"
 
 
 class ConnectionStatus:

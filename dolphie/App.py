@@ -26,7 +26,10 @@ from dolphie.Panels import Dashboard as DashboardPanel
 from dolphie.Panels import MetadataLocks as MetadataLocksPanel
 from dolphie.Panels import PerformanceSchemaMetrics as PerformanceSchemaMetricsPanel
 from dolphie.Panels import Processlist as ProcesslistPanel
+from dolphie.Panels import PostgreSQLProcesslist as PostgreSQLProcesslistPanel
+from dolphie.Panels import PostgreSQLReplication as PostgreSQLReplicationPanel
 from dolphie.Panels import ProxySQLCommandStats as ProxySQLCommandStatsPanel
+from dolphie.Panels import PostgreSQLDashboard as PostgreSQLDashboardPanel
 from dolphie.Panels import ProxySQLDashboard as ProxySQLDashboardPanel
 from dolphie.Panels import ProxySQLHostgroupSummary as ProxySQLHostgroupSummaryPanel
 from dolphie.Panels import ProxySQLProcesslist as ProxySQLProcesslistPanel
@@ -60,14 +63,19 @@ class DolphieApp(App):
     COMMANDS = {CommandPaletteCommands}
     COMMAND_PALETTE_BINDING = "question_mark"
     PANEL_MAPPING = {
-        "replication": {ConnectionSource.mysql: ReplicationPanel},
+        "replication": {
+            ConnectionSource.mysql: ReplicationPanel,
+            ConnectionSource.postgresql: PostgreSQLReplicationPanel,
+        },
         "dashboard": {
             ConnectionSource.mysql: DashboardPanel,
             ConnectionSource.proxysql: ProxySQLDashboardPanel,
+            ConnectionSource.postgresql: PostgreSQLDashboardPanel,
         },
         "processlist": {
             ConnectionSource.mysql: ProcesslistPanel,
             ConnectionSource.proxysql: ProxySQLProcesslistPanel,
+            ConnectionSource.postgresql: PostgreSQLProcesslistPanel,
         },
         "metadata_locks": {ConnectionSource.mysql: MetadataLocksPanel},
         "ddl": {ConnectionSource.mysql: DDLPanel},
@@ -145,8 +153,7 @@ class DolphieApp(App):
 
         if config.daemon_mode:
             logger.info(
-                f"Starting Dolphie v{__version__} in daemon mode with a refresh "
-                f"interval of {config.refresh_interval}s"
+                f"Starting Dolphie v{__version__} in daemon mode with a refresh interval of {config.refresh_interval}s"
             )
             logger.info(f"Log file: {config.daemon_mode_log_file}")
 
@@ -323,6 +330,8 @@ class DolphieApp(App):
                 tab.toggle_replication_panel_components()
             elif tab.dolphie.connection_source == ConnectionSource.proxysql:
                 self.worker_data_processor.refresh_screen_proxysql(tab)
+            elif tab.dolphie.connection_source == ConnectionSource.postgresql:
+                self.worker_data_processor.refresh_screen_postgresql(tab)
 
             self.force_refresh_for_replay(need_current_data=True)
 
