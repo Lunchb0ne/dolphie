@@ -8,12 +8,13 @@ from dataclasses import dataclass, field, fields
 from urllib.parse import ParseResult, urlparse
 
 import myloginpath
-from dolphie.DataTypes import ConnectionSource, Panels
-from dolphie.Modules.Queries import MySQLQueries
 from rich import box
 from rich.console import Console
 from rich.table import Table
 from rich.theme import Theme
+
+from dolphie.DataTypes import ConnectionSource, Panels
+from dolphie.Modules.Queries import MySQLQueries
 
 
 @dataclass
@@ -201,7 +202,8 @@ Dolphie's config supports these options under [dolphie] section:
             type=str,
             nargs="?",
             help=(
-                "Use a URI string for credentials (mysql/proxysql/postgresql) - format: mysql://user:password@host:port "
+                "Use a URI string for credentials (mysql/proxysql/postgresql) - "
+                "format: mysql://user:password@host:port "
                 f"(port is optional with default {self.config.port}, or 6032 for ProxySQL, or 5432 for PostgreSQL)"
             ),
         )
@@ -587,10 +589,14 @@ Dolphie's config supports these options under [dolphie] section:
         for option in self.config_object_options:
             if option not in login_options and options[option]:
                 # If db_type is mysql (default), don't set it so URI scheme can override it
-                if option == "db_type" and options[option] == "mysql":
-                    continue
+                if option == "db_type":
+                    if options[option] == "mysql":
+                        continue
 
-                self.set_config_value("command-line", option, options[option])
+                    # Convert argparse lowercase value (e.g. "postgresql") to ConnectionSource constant
+                    self.set_config_value("command-line", option, getattr(ConnectionSource, options[option]))
+                else:
+                    self.set_config_value("command-line", option, options[option])
 
         if self.config.credential_profile and self.config.credential_profile not in self.config.credential_profiles:
             self.exit(

@@ -1,9 +1,9 @@
-import pytest
-from textual.widgets import DataTable
 from unittest.mock import MagicMock
 
-from dolphie.Panels import PostgreSQLReplication
+from textual.widgets import DataTable
+
 from dolphie.Modules.TabManager import Tab
+from dolphie.Panels import PostgreSQLReplication
 
 
 class TestPostgreSQLReplicationPanel:

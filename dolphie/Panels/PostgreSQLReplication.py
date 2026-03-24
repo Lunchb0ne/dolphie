@@ -54,3 +54,5 @@ def create_panel(tab: Tab) -> DataTable:
     existing_keys = set(replication_datatable.rows.keys())
     for key in existing_keys - current_keys:
         replication_datatable.remove_row(key)
+
+    return replication_datatable

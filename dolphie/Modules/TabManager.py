@@ -2,15 +2,6 @@ import copy
 import os
 import uuid
 
-import dolphie.Modules.MetricManager as MetricManager
-from dolphie.DataTypes import ConnectionSource, ConnectionStatus, Panels
-from dolphie.Dolphie import Dolphie
-from dolphie.Modules.ArgumentParser import Config, HostGroupMember
-from dolphie.Modules.ManualException import ManualException
-from dolphie.Modules.ReplayManager import ReplayManager
-from dolphie.Widgets.SpinnerWidget import SpinnerWidget
-from dolphie.Widgets.TabSetupModal import TabSetupModal
-from dolphie.Widgets.TopBar import TopBar
 from rich.text import Text
 from textual.app import App
 from textual.containers import (
@@ -33,10 +24,22 @@ from textual.widgets import (
     Sparkline,
     Static,
     Switch,
+    TabbedContent,
+    TabPane,
+    Tabs,
 )
 from textual.widgets import Tab as TabWidget
-from textual.widgets import TabbedContent, TabPane, Tabs
 from textual.worker import Worker
+
+import dolphie.Modules.MetricManager as MetricManager
+from dolphie.DataTypes import ConnectionSource, ConnectionStatus, Panels
+from dolphie.Dolphie import Dolphie
+from dolphie.Modules.ArgumentParser import Config, HostGroupMember
+from dolphie.Modules.ManualException import ManualException
+from dolphie.Modules.ReplayManager import ReplayManager
+from dolphie.Widgets.SpinnerWidget import SpinnerWidget
+from dolphie.Widgets.TabSetupModal import TabSetupModal
+from dolphie.Widgets.TopBar import TopBar
 
 
 class Tab:
@@ -214,10 +217,7 @@ class Tab:
                 or self.dolphie.replay_file,
             )
 
-        elif (
-            self.dolphie.connection_source == ConnectionSource.proxysql
-            or self.dolphie.connection_source == ConnectionSource.postgresql
-        ):
+        elif self.dolphie.connection_source == ConnectionSource.proxysql:
             self.dashboard_section_5.display = False
 
     def toggle_metric_graph_tabs_display(self):

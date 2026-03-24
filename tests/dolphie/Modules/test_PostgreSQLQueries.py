@@ -1,4 +1,3 @@
-import pytest
 from dolphie.Modules.Queries import PostgreSQLQueries
 
 

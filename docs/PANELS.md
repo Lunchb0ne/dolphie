@@ -382,6 +382,30 @@ tab.sparkline.refresh()
 
 ---
 
+### 4. PostgreSQL Replication
+**File**: `Panels/PostgreSQLReplication.py`  
+**Key Binding**: `4`
+
+**Purpose**: View standby replication status from `pg_stat_replication`
+
+**Displays**:
+- PID, host, user, application name
+- Replication state and sync state
+- Replay lag, write lag, and flush lag
+
+---
+
+### PostgreSQL Panel Key Bindings
+
+| Key | Panel |
+|-----|-------|
+| `1` | PostgreSQL Dashboard |
+| `2` | PostgreSQL Processlist |
+| `3` | PostgreSQL Graphs |
+| `4` | PostgreSQL Replication |
+
+---
+
 ## ProxySQL Panels
 
 ### 1. ProxySQL Dashboard

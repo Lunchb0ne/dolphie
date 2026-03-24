@@ -60,3 +60,5 @@ def create_panel(tab: Tab) -> DataTable:
     thread_count = len(dolphie.processlist_threads)
     title = f"{panel_title} ([highlight]{thread_count}[/highlight])"
     tab.processlist_title.update(title)
+
+    return processlist_datatable

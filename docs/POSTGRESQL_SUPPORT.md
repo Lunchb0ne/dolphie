@@ -4,7 +4,7 @@
 
 Dolphie provides comprehensive PostgreSQL support with panels equivalent to MySQL features. The implementation achieves feature parity for core monitoring dashboards while respecting PostgreSQL's architectural differences.
 
-Note: PostgreSQL support is implemented with PostgreSQL-specific queries and types. Some MySQL-only panels (Replication, Metadata Locks, DDL, Performance Schema Metrics, Statements Summary) are not applicable to PostgreSQL.
+Note: PostgreSQL support is implemented with PostgreSQL-specific queries and types. Some MySQL-only panels (Metadata Locks, DDL, Performance Schema Metrics, Statements Summary) are not applicable to PostgreSQL.
 
 ---
 
@@ -16,6 +16,7 @@ Note: PostgreSQL support is implemented with PostgreSQL-specific queries and typ
 1. **Dashboard** - Host info, transactions, tuple activity, WAL, system utilization
 2. **Processlist** - Active backend connections with query details
 3. **Metric Graphs** - Auto-generated graphs for all PostgreSQL metrics
+4. **Replication** - Standby replica status from `pg_stat_replication`
 
 #### Metrics Collection
 - Transaction activity (commits, rollbacks)
@@ -33,7 +34,6 @@ Note: PostgreSQL support is implemented with PostgreSQL-specific queries and typ
 ### Future Enhancements 📋
 
 #### Medium Priority
-- **Replication Panel**: WAL slot consumption, standby lag, replica status
 - **Query Statistics**: pg_stat_statements integration
 - **Lock Monitoring**: pg_locks view inspection
 
