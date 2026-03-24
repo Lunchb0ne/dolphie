@@ -22,6 +22,7 @@ from dolphie.DataTypes import (
     ConnectionSource,
     DatabaseRow,
     DatabaseScalar,
+    PostgreSQLProcesslistThread,
     ProcesslistThread,
     ProxySQLProcesslistThread,
     ReplicaRow,
@@ -68,7 +69,21 @@ class ProxySQLReplayData:
     metric_manager: dict[str, Any]
 
 
-ProcesslistThreadType = TypeVar("ProcesslistThreadType", ProcesslistThread, ProxySQLProcesslistThread)
+@dataclass
+class PostgreSQLReplayData:
+    timestamp: str
+    system_utilization: SystemUtilization
+    global_status: DatabaseRow
+    global_variables: DatabaseRow
+    replication: list[DatabaseRow]
+    table_health: list[DatabaseRow]
+    processlist: dict[int, PostgreSQLProcesslistThread]
+    metric_manager: dict[str, Any]
+
+
+ProcesslistThreadType = TypeVar(
+    "ProcesslistThreadType", ProcesslistThread, ProxySQLProcesslistThread, PostgreSQLProcesslistThread
+)
 
 
 class ReplayManager:
@@ -1126,6 +1141,13 @@ class ReplayManager:
         # Add connection-source specific data
         if self.dolphie.connection_source == ConnectionSource.mysql:
             self._add_mysql_specific_data(data_dict)
+        elif self.dolphie.connection_source == ConnectionSource.postgresql:
+            data_dict.update(
+                {
+                    "replication": self.dolphie.postgresql_replication,
+                    "table_health": self.dolphie.postgresql_table_health,
+                }
+            )
         else:
             data_dict.update(
                 {
@@ -1341,9 +1363,34 @@ class ReplayManager:
             processlist=processlist,
         )
 
+    def _create_postgresql_replay_data(self, timestamp: str, data: dict[str, Any]) -> PostgreSQLReplayData:
+        """Creates a PostgreSQLReplayData object from parsed replay data.
+
+        Args:
+            timestamp: The timestamp of the replay data.
+            data: The parsed data dictionary.
+
+        Returns:
+            PostgreSQLReplayData: The constructed replay data object.
+        """
+        processlist = self._build_processlist_from_data(
+            self._as_list(data.get("processlist")), PostgreSQLProcesslistThread
+        )
+
+        return PostgreSQLReplayData(
+            timestamp=timestamp,
+            system_utilization=self._as_dict(data.get("system_utilization")),
+            global_status=self._as_dict(data.get("global_status")),
+            global_variables=self._as_dict(data.get("global_variables")),
+            metric_manager=self._as_dict(data.get("metric_manager")),
+            replication=self._as_list(data.get("replication")),
+            table_health=self._as_list(data.get("table_health")),
+            processlist=processlist,
+        )
+
     def get_next_refresh_interval(
         self,
-    ) -> MySQLReplayData | ProxySQLReplayData | None:
+    ) -> MySQLReplayData | ProxySQLReplayData | PostgreSQLReplayData | None:
         """Gets the next refresh interval's data from the SQLite database and returns it as a ReplayData object.
 
         Returns:
@@ -1366,6 +1413,8 @@ class ReplayManager:
             return self._create_mysql_replay_data(timestamp, data)
         elif self.dolphie.connection_source == ConnectionSource.proxysql:
             return self._create_proxysql_replay_data(timestamp, data)
+        elif self.dolphie.connection_source == ConnectionSource.postgresql:
+            return self._create_postgresql_replay_data(timestamp, data)
         else:
             self.dolphie.app.notify("Invalid connection source for replay data", severity="error")
             return None

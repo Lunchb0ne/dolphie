@@ -49,6 +49,7 @@ class TabAvailability(Enum):
     SYSTEM_UTILIZATION = "system_utilization"
     ADAPTIVE_HASH_INDEX = "adaptive_hash_index"
     REPLICATION = "replication"
+    POSTGRESQL_WAL = "postgresql_wal"
 
 
 @dataclass(frozen=True, order=True)
@@ -124,7 +125,9 @@ class GraphTabSpec:
 
 MYSQL = frozenset[ConnectionSourceType]((ConnectionSource.mysql,))
 PROXYSQL = frozenset[ConnectionSourceType]((ConnectionSource.proxysql,))
+POSTGRESQL = frozenset[ConnectionSourceType]((ConnectionSource.postgresql,))
 BOTH = frozenset[ConnectionSourceType]((ConnectionSource.mysql, ConnectionSource.proxysql))
+ALL = BOTH | POSTGRESQL
 
 
 def _key(group: str, metric: str) -> MetricKey:
@@ -135,7 +138,7 @@ GRAPH_TABS = (
     GraphTabSpec(
         id="system",
         title="System",
-        connection_sources=BOTH,
+        connection_sources=ALL,
         availability=TabAvailability.SYSTEM_UTILIZATION,
         rows=(
             GraphRowSpec(
@@ -670,6 +673,74 @@ GRAPH_TABS = (
                         "graph_proxysql_total_command_stats",
                         "proxysql_total_command_stats",
                         tuple(_key("proxysql_total_command_stats", metric) for metric in COMMAND_STAT_BUCKETS),
+                    ),
+                )
+            ),
+        ),
+    ),
+    GraphTabSpec(
+        id="postgresql_transactions",
+        title="Transactions",
+        connection_sources=POSTGRESQL,
+        rows=(
+            GraphRowSpec(
+                (
+                    GraphSpec(
+                        "graph_postgresql_transactions",
+                        "postgresql_transactions",
+                        (
+                            _key("postgresql_transactions", "xact_commit"),
+                            _key("postgresql_transactions", "xact_rollback"),
+                        ),
+                    ),
+                )
+            ),
+        ),
+    ),
+    GraphTabSpec(
+        id="postgresql_tuples",
+        title="Tuples",
+        connection_sources=POSTGRESQL,
+        rows=(
+            GraphRowSpec(
+                (
+                    GraphSpec(
+                        "graph_postgresql_tuples",
+                        "postgresql_tuples",
+                        (
+                            _key("postgresql_tuples", "tup_fetched"),
+                            _key("postgresql_tuples", "tup_returned"),
+                            _key("postgresql_tuples", "tup_inserted"),
+                            _key("postgresql_tuples", "tup_updated"),
+                            _key("postgresql_tuples", "tup_deleted"),
+                        ),
+                    ),
+                )
+            ),
+        ),
+    ),
+    GraphTabSpec(
+        id="postgresql_wal",
+        title="WAL",
+        connection_sources=POSTGRESQL,
+        availability=TabAvailability.POSTGRESQL_WAL,
+        rows=(
+            GraphRowSpec(
+                (
+                    GraphSpec(
+                        "graph_postgresql_wal_records",
+                        "postgresql_wal_records",
+                        (
+                            _key("postgresql_wal_records", "wal_records"),
+                            _key("postgresql_wal_records", "wal_fpi"),
+                        ),
+                        title="WAL Records",
+                    ),
+                    GraphSpec(
+                        "graph_postgresql_wal_bytes",
+                        "postgresql_wal_bytes",
+                        (_key("postgresql_wal_bytes", "wal_bytes"),),
+                        title="WAL Bytes",
                     ),
                 )
             ),

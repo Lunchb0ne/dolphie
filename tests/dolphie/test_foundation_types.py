@@ -21,7 +21,7 @@ from dolphie.Modules.Functions import coerce_float, coerce_int, coerce_str, form
 def test_connection_namespaces_remain_string_values():
     assert ConnectionSource.mysql == "MySQL"
     assert ConnectionStatus.connected == "CONNECTED"
-    assert set(get_args(ConnectionSourceType)) == {"MySQL", "ProxySQL", "MariaDB"}
+    assert set(get_args(ConnectionSourceType)) == {"MySQL", "ProxySQL", "MariaDB", "PostgreSQL"}
     assert set(get_args(ConnectionStatusType)) == {"CONNECTING", "CONNECTED", "DISCONNECTED", "R/W", "RO"}
 
 

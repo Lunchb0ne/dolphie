@@ -12,7 +12,7 @@ from dolphie.Modules.Functions import coerce_float, coerce_int, coerce_str, form
 if TYPE_CHECKING:
     from dolphie.Modules.MySQL import Database
 
-ConnectionSourceType = Literal["MySQL", "ProxySQL", "MariaDB"]
+ConnectionSourceType = Literal["MySQL", "ProxySQL", "MariaDB", "PostgreSQL"]
 ConnectionStatusType = Literal["CONNECTING", "CONNECTED", "DISCONNECTED", "R/W", "RO"]
 DatabaseScalar = str | int | float | Decimal | date | datetime | timedelta | None
 DatabaseRow = dict[str, DatabaseScalar]
@@ -24,6 +24,7 @@ class ConnectionSource:
     mysql: Final[Literal["MySQL"]] = "MySQL"
     proxysql: Final[Literal["ProxySQL"]] = "ProxySQL"
     mariadb: Final[Literal["MariaDB"]] = "MariaDB"
+    postgresql: Final[Literal["PostgreSQL"]] = "PostgreSQL"
 
 
 class ConnectionStatus:
@@ -340,6 +341,23 @@ class ProxySQLProcesslistThread(BaseProcesslistThread):
         self.formatted_time = self._format_time_with_color(self.time, color)
         self.command = self._format_command(coerce_str(thread_data.get("command")))
         self.extended_info = coerce_str(thread_data.get("extended_info"))
+
+
+class PostgreSQLProcesslistThread(BaseProcesslistThread):
+    def __init__(self, thread_data: DatabaseRow):
+        super().__init__(thread_data)
+
+        self.host = self._format_string(coerce_str(thread_data.get("host")))
+        self.time = coerce_int(thread_data.get("time"))
+        self.state = coerce_str(thread_data.get("state"))
+        self.command = self._format_string(self.state)
+        self.wait_event = self._format_string(coerce_str(thread_data.get("wait_event")))
+        self.formatted_query = format_query(coerce_str(thread_data.get("query")))
+        color = self._get_time_color(self.time, self.formatted_query.code)
+        self.formatted_time = self._format_time_with_color(self.time, color)
+
+
+AnyProcesslistThread = ProcesslistThread | ProxySQLProcesslistThread | PostgreSQLProcesslistThread
 
 
 class HotkeyCommands:

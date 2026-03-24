@@ -198,6 +198,14 @@ class KeyEventManager:
                 tab.proxysql_hostgroup_summary_datatable.clear()
                 return
 
+            if dolphie.connection_source == ConnectionSource.postgresql:
+                if not dolphie.postgresql_replication and not dolphie.panels.replication.visible:
+                    self.app.notify("Replication panel has no data to display")
+                    return
+
+                self.app.toggle_panel(dolphie.panels.replication.name)
+                return
+
             replica_count = dolphie.replica_manager.discovery_count
             has_replication_data = any(
                 [

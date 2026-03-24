@@ -41,6 +41,9 @@ from dolphie.Panels import DDL as DDLPanel
 from dolphie.Panels import Dashboard as DashboardPanel
 from dolphie.Panels import MetadataLocks as MetadataLocksPanel
 from dolphie.Panels import PerformanceSchemaMetrics as PerformanceSchemaMetricsPanel
+from dolphie.Panels import PostgreSQLDashboard as PostgreSQLDashboardPanel
+from dolphie.Panels import PostgreSQLProcesslist as PostgreSQLProcesslistPanel
+from dolphie.Panels import PostgreSQLReplication as PostgreSQLReplicationPanel
 from dolphie.Panels import Processlist as ProcesslistPanel
 from dolphie.Panels import ProxySQLCommandStats as ProxySQLCommandStatsPanel
 from dolphie.Panels import ProxySQLDashboard as ProxySQLDashboardPanel
@@ -68,14 +71,19 @@ class DolphieApp(App):
     COMMAND_PALETTE_BINDING = "question_mark"
     BINDINGS = [Binding("escape", "exit_maximized_panel", "Exit maximized panel", show=True)]
     PANEL_MAPPING = {
-        "replication": {ConnectionSource.mysql: ReplicationPanel},
+        "replication": {
+            ConnectionSource.mysql: ReplicationPanel,
+            ConnectionSource.postgresql: PostgreSQLReplicationPanel,
+        },
         "dashboard": {
             ConnectionSource.mysql: DashboardPanel,
             ConnectionSource.proxysql: ProxySQLDashboardPanel,
+            ConnectionSource.postgresql: PostgreSQLDashboardPanel,
         },
         "processlist": {
             ConnectionSource.mysql: ProcesslistPanel,
             ConnectionSource.proxysql: ProxySQLProcesslistPanel,
+            ConnectionSource.postgresql: PostgreSQLProcesslistPanel,
         },
         "metadata_locks": {ConnectionSource.mysql: MetadataLocksPanel},
         "ddl": {ConnectionSource.mysql: DDLPanel},

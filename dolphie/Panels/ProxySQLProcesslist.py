@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rich.syntax import Syntax
 
-from dolphie.DataTypes import ProcesslistThread, ProxySQLProcesslistThread
+from dolphie.DataTypes import AnyProcesslistThread, ProxySQLProcesslistThread
 from dolphie.Modules.Functions import coerce_int, filter_excludes, filter_sql_condition, format_query
 from dolphie.Modules.Queries import ProxySQLQueries
 from dolphie.Modules.TabManager import Tab
@@ -58,7 +58,7 @@ def create_panel(tab: Tab) -> None:
     # Has to happen before the filtering below so replays remember the values being filtered out
     dolphie.record_filter_dropdown_values()
 
-    threads_to_render: dict[int, ProcesslistThread | ProxySQLProcesslistThread] = {}
+    threads_to_render: dict[int, AnyProcesslistThread] = {}
     if dolphie.replay_file:
         for thread_id, thread in dolphie.processlist_threads.items():
             if not isinstance(thread, ProxySQLProcesslistThread):
@@ -158,7 +158,7 @@ def create_panel(tab: Tab) -> None:
     )
 
 
-def fetch_data(tab: Tab) -> dict[int, ProcesslistThread | ProxySQLProcesslistThread]:
+def fetch_data(tab: Tab) -> dict[int, AnyProcesslistThread]:
     dolphie = tab.dolphie
 
     ########################
