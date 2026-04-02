@@ -2,15 +2,6 @@ import copy
 import os
 import uuid
 
-import dolphie.Modules.MetricManager as MetricManager
-from dolphie.DataTypes import ConnectionSource, ConnectionStatus, Panels
-from dolphie.Dolphie import Dolphie
-from dolphie.Modules.ArgumentParser import Config, HostGroupMember
-from dolphie.Modules.ManualException import ManualException
-from dolphie.Modules.ReplayManager import ReplayManager
-from dolphie.Widgets.SpinnerWidget import SpinnerWidget
-from dolphie.Widgets.TabSetupModal import TabSetupModal
-from dolphie.Widgets.TopBar import TopBar
 from rich.text import Text
 from textual.app import App
 from textual.containers import (
@@ -33,10 +24,22 @@ from textual.widgets import (
     Sparkline,
     Static,
     Switch,
+    TabbedContent,
+    TabPane,
+    Tabs,
 )
 from textual.widgets import Tab as TabWidget
-from textual.widgets import TabbedContent, TabPane, Tabs
 from textual.worker import Worker
+
+import dolphie.Modules.MetricManager as MetricManager
+from dolphie.DataTypes import ConnectionSource, ConnectionStatus, Panels
+from dolphie.Dolphie import Dolphie
+from dolphie.Modules.ArgumentParser import Config, HostGroupMember
+from dolphie.Modules.ManualException import ManualException
+from dolphie.Modules.ReplayManager import ReplayManager
+from dolphie.Widgets.SpinnerWidget import SpinnerWidget
+from dolphie.Widgets.TabSetupModal import TabSetupModal
+from dolphie.Widgets.TopBar import TopBar
 
 
 class Tab:
@@ -516,7 +519,13 @@ class TabManager:
         self.app.query_one("#statements_summary_title", Label).update(panels.statements_summary.title)
 
         # Loop the metric instances and create the graph tabs
-        metric_manager = MetricManager.MetricManager(None)
+        if self.config.db_type == ConnectionSource.postgresql:
+            from dolphie.Modules.PostgreSQL import PostgreSQLMetricManager
+
+            metric_manager = PostgreSQLMetricManager(None)
+        else:
+            metric_manager = MetricManager.MetricManager(None)
+
         metric_graph_tabs = self.app.query_one("#metric_graph_tabs", TabbedContent)
         for metric_instance_name, metric_instance in metric_manager.metrics.__dict__.items():
             metric_tab_name = metric_instance.tab_name

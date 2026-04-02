@@ -1,0 +1,126 @@
+[tools]
+poetry = { version = "latest" }
+python = "3.12" # must be after poetry so the poetry bin is first in PATH
+
+[tasks]
+# development tasks
+install = "poetry install"
+update = "poetry update"
+
+# run dolphie
+[tasks.run]
+description = "Run dolphie with MySQL connection"
+usage = 'arg "<connection_string>" help="Database connection string (e.g., mysql://user:pass@host:port)" default="mysql://root:mysql@localhost:3306"'
+run = "poetry run dolphie ${usage_connection_string}"
+
+[tasks.run-pg]
+description = "Run dolphie with PostgreSQL connection"
+usage = 'arg "<connection_string>" help="PostgreSQL connection string" default="postgresql://postgres:postgres@localhost:5432"'
+run = "poetry run dolphie ${usage_connection_string}"
+
+# testing tasks
+[tasks.test]
+description = "Run all tests with pytest"
+run = "poetry run pytest"
+alias = "t"
+
+[tasks.test-watch]
+description = "Run tests in watch mode"
+run = "poetry run pytest-watch"
+
+[tasks.test-verbose]
+description = "Run tests with verbose output"
+run = "poetry run pytest -vv"
+alias = "tv"
+
+[tasks.test-coverage]
+description = "Run tests and generate a coverage report"
+run = [
+    "poetry run pytest --cov=dolphie --cov-report=html --cov-report=term",
+    "echo 'Coverage report generated in htmlcov/index.html'"
+]
+
+# code quality tasks
+[tasks.lint]
+description = "Run ruff linter"
+run = "poetry run ruff check ."
+alias = "l"
+
+[tasks.lint-fix]
+description = "Run ruff and fix issues automatically"
+run = "poetry run ruff check --fix ."
+
+[tasks.format]
+description = "Format code with ruff"
+run = "poetry run ruff format ."
+alias = "f"
+
+[tasks.format-check]
+description = "Check code formatting without modifying files"
+run = "poetry run ruff format --check ."
+
+[tasks.type-check]
+description = "Run mypy type checks (if configured)"
+run = "poetry run mypy dolphie/"
+
+# combined quality checks
+[tasks.check]
+description = "Run all code quality checks (format, lint)"
+depends = ["format-check", "lint"]
+run = "echo 'All checks passed.'"
+
+[tasks.fix]
+description = "Fix formatting and linting issues automatically"
+depends = ["format", "lint-fix"]
+
+# CI tasks
+[tasks.ci]
+description = "Run all CI checks (format, lint, test)"
+depends = ["format-check", "lint", "test"]
+
+# build and publish
+[tasks.build]
+description = "Build the package with poetry"
+run = "poetry build"
+
+[tasks.publish]
+description = "Publish package to PyPI"
+confirm = "Are you sure you want to publish to PyPI?"
+run = "poetry publish"
+
+[tasks.publish-test]
+description = "Publish package to TestPyPI"
+run = "poetry publish -r testpypi"
+
+# development environment
+[tasks.shell]
+description = "Activate poetry shell"
+run = "poetry shell"
+
+[tasks.info]
+description = "Show poetry environment info"
+run = "poetry env info"
+
+[tasks.clean]
+description = "Clean build artifacts and cache files"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+echo "Cleaning build artifacts..."
+rm -rf dist/ build/ *.egg-info
+rm -rf .pytest_cache/ .ruff_cache/ htmlcov/ .coverage
+find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+echo "Clean complete."
+'''
+
+# docker tasks
+[tasks.docker-build]
+description = "Build Docker image"
+run = "docker build -t dolphie:latest ."
+hide = true # hidden by default since Dockerfile exists
+
+[tasks.docker-run]
+description = "Run Docker container"
+depends = ["docker-build"]
+run = "docker run -it --rm dolphie:latest"
+hide = true

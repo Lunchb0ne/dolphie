@@ -13,6 +13,7 @@ from dolphie.Modules.ArgumentParser import Config
 from dolphie.Modules.Functions import load_host_cache_file
 from dolphie.Modules.MySQL import ConnectionSource, Database
 from dolphie.Modules.PerformanceSchemaMetrics import PerformanceSchemaMetrics
+from dolphie.Modules.PostgreSQL import PostgreSQLDatabase, PostgreSQLMetricManager
 from dolphie.Modules.Queries import MySQLQueries
 from loguru import logger
 from packaging.version import parse as parse_version
@@ -72,7 +73,11 @@ class Dolphie:
         self.reset_runtime_variables()
 
     def reset_runtime_variables(self):
-        self.metric_manager = MetricManager.MetricManager(self.replay_file, self.daemon_mode)
+        if self.config.db_type == ConnectionSource.postgresql:
+            self.metric_manager = PostgreSQLMetricManager(self.replay_file, self.daemon_mode)
+        else:
+            self.metric_manager = MetricManager.MetricManager(self.replay_file, self.daemon_mode)
+
         self.replica_manager = DataTypes.ReplicaManager()
 
         self.dolphie_start_time: datetime = datetime.now().astimezone()
@@ -119,7 +124,7 @@ class Dolphie:
         self.query_time_filter: int = None
 
         # Types of hosts
-        self.connection_source: ConnectionSource = ConnectionSource.mysql  # mysql, proxysql
+        self.connection_source: ConnectionSource = self.config.db_type  # mysql, proxysql, postgresql
         self.connection_source_alt: ConnectionSource = ConnectionSource.mysql  # mariadb
         self.galera_cluster: bool = False
         self.group_replication: bool = False
@@ -139,9 +144,16 @@ class Dolphie:
             "auto_connect": False,
             "daemon_mode": self.daemon_mode,
         }
-        self.main_db_connection = Database(**db_connection_args)
-        # Secondary connection is for ad-hoc commands that are not a part of the worker thread
-        self.secondary_db_connection = Database(**db_connection_args, save_connection_id=False)
+
+        if self.connection_source == ConnectionSource.postgresql:
+            self.main_db_connection = PostgreSQLDatabase(**db_connection_args)
+            self.secondary_db_connection = PostgreSQLDatabase(
+                **db_connection_args
+            )  # PostgreSQLDatabase doesn't support save_connection_id yet but it ignores extra args in **kwargs
+        else:
+            self.main_db_connection = Database(**db_connection_args)
+            # Secondary connection is for ad-hoc commands that are not a part of the worker thread
+            self.secondary_db_connection = Database(**db_connection_args, save_connection_id=False)
 
         # Misc variables
         self.host_distro: str = "MySQL"

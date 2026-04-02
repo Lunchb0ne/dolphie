@@ -13,7 +13,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.theme import Theme
 
-from dolphie.DataTypes import Panels
+from dolphie.DataTypes import ConnectionSource, Panels
 from dolphie.Modules.Queries import MySQLQueries
 
 
@@ -62,6 +62,7 @@ class Config:
             f"{os.path.expanduser('~')}/.dolphie.cnf",
         ]
     )
+    db_type: ConnectionSource = ConnectionSource.mysql
     mycnf_file: str = field(default_factory=lambda: f"{os.path.expanduser('~')}/.my.cnf")
     login_path: str = "client"
     host_cache_file: str = field(default_factory=lambda: f"{os.path.expanduser('~')}/dolphie_host_cache")
@@ -107,7 +108,9 @@ class ArgumentParser:
                 (
                     f"(comma-separated str) {option}"
                     if option in ("daemon_mode_panels", "startup_panels", "exclude_notify_global_vars")
-                    else f"({data_type.__name__}) {option}" if hasattr(data_type, "__name__") else f"(str) {option} []"
+                    else f"({data_type.__name__}) {option}"
+                    if hasattr(data_type, "__name__")
+                    else f"(str) {option} []"
                 )
                 for option, data_type in self.config_object_options.items()
                 if option != "config_file"
@@ -199,9 +202,18 @@ Dolphie's config supports these options under [dolphie] section:
             type=str,
             nargs="?",
             help=(
-                "Use a URI string for credentials (mysql/proxysql) - format: mysql://user:password@host:port "
-                f"(port is optional with default {self.config.port}, or 6032 for ProxySQL)"
+                "Use a URI string for credentials (mysql/proxysql/postgresql) - "
+                "format: mysql://user:password@host:port "
+                f"(port is optional with default {self.config.port}, or 6032 for ProxySQL, or 5432 for PostgreSQL)"
             ),
+        )
+
+        self.parser.add_argument(
+            "--type",
+            dest="db_type",
+            choices=["mysql", "postgresql"],
+            default="mysql",
+            help="Database type (mysql or postgresql) [default: mysql]",
         )
 
         self.parser.add_argument(
@@ -264,8 +276,7 @@ Dolphie's config supports these options under [dolphie] section:
             dest="mycnf_file",
             type=str,
             help=(
-                "MySQL config file path to use. This should use [client] section "
-                f"[default: {self.config.mycnf_file}]"
+                f"MySQL config file path to use. This should use [client] section [default: {self.config.mycnf_file}]"
             ),
             metavar="",
         )
@@ -377,8 +388,7 @@ Dolphie's config supports these options under [dolphie] section:
             dest="pypi_repository",
             type=str,
             help=(
-                "What PyPi repository to use when checking for a new version "
-                f"default: [{self.config.pypi_repository}]"
+                f"What PyPi repository to use when checking for a new version default: [{self.config.pypi_repository}]"
             ),
             metavar="",
         )
@@ -578,7 +588,15 @@ Dolphie's config supports these options under [dolphie] section:
         # We need to loop through all options and set non-login options so we can use them for the logic below
         for option in self.config_object_options:
             if option not in login_options and options[option]:
-                self.set_config_value("command-line", option, options[option])
+                # If db_type is mysql (default), don't set it so URI scheme can override it
+                if option == "db_type":
+                    if options[option] == "mysql":
+                        continue
+
+                    # Convert argparse lowercase value (e.g. "postgresql") to ConnectionSource constant
+                    self.set_config_value("command-line", option, getattr(ConnectionSource, options[option]))
+                else:
+                    self.set_config_value("command-line", option, options[option])
 
         if self.config.credential_profile and self.config.credential_profile not in self.config.credential_profiles:
             self.exit(
@@ -647,11 +665,17 @@ Dolphie's config supports these options under [dolphie] section:
 
                 if parsed_result.scheme == "mysql":
                     port = parsed_result.port or 3306
+                    self.set_config_value("uri", "db_type", ConnectionSource.mysql)
                 elif parsed_result.scheme == "proxysql":
                     port = parsed_result.port or 6032
+                    self.set_config_value("uri", "db_type", ConnectionSource.proxysql)
+                elif parsed_result.scheme == "postgresql":
+                    port = parsed_result.port or 5432
+                    self.set_config_value("uri", "db_type", ConnectionSource.postgresql)
                 else:
                     self.exit(
-                        "Invalid URI scheme: Only 'mysql' or 'proxysql' are supported (see --help for more information)"
+                        "Invalid URI scheme: Only 'mysql', 'proxysql', or 'postgresql' "
+                        "are supported (see --help for more information)"
                     )
 
                 self.set_config_value("uri", "user", parsed_result.username)

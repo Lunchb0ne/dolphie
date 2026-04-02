@@ -6,10 +6,13 @@ import sqlite3
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 import orjson
 import zstandard as zstd
+from loguru import logger
+
 from dolphie.DataTypes import (
     ConnectionSource,
     ProcesslistThread,
@@ -19,7 +22,6 @@ from dolphie.Dolphie import Dolphie
 from dolphie.Modules import MetricManager
 from dolphie.Modules.Functions import format_bytes, minify_query
 from dolphie.Modules.PerformanceSchemaMetrics import PerformanceSchemaMetrics
-from loguru import logger
 
 
 @dataclass
@@ -52,6 +54,16 @@ class ProxySQLReplayData:
     global_variables: dict
     command_stats: dict
     hostgroup_summary: dict
+    processlist: dict
+    metric_manager: dict
+
+
+@dataclass
+class PostgreSQLReplayData:
+    timestamp: str
+    system_utilization: dict
+    global_status: dict
+    global_variables: dict
     processlist: dict
     metric_manager: dict
 
@@ -707,6 +719,29 @@ class ReplayManager:
         if self.dolphie.statements_summary_data and self.dolphie.statements_summary_data.filtered_data:
             data_dict["statements_summary_data"] = self.dolphie.statements_summary_data.filtered_data
 
+    def _add_proxysql_specific_data(self, data_dict: dict) -> None:
+        """Adds ProxySQL-specific data to the data dictionary.
+
+        Args:
+            data_dict: The data dictionary to update.
+        """
+        data_dict.update(
+            {
+                "command_stats": self.dolphie.proxysql_command_stats,
+                "hostgroup_summary": self.dolphie.proxysql_hostgroup_summary,
+            }
+        )
+
+    def _add_postgresql_specific_data(self, data_dict: dict) -> None:
+        """Adds PostgreSQL-specific data to the data dictionary.
+
+        Args:
+            data_dict: The data dictionary to update.
+        """
+        # Placeholder for PostgreSQL specific data if any needed later
+        pass
+
+
     def _serialize_data_dict(self, data_dict: dict) -> bytes:
         """Serializes the data dictionary to bytes using orjson or json as fallback.
 
@@ -716,14 +751,20 @@ class ReplayManager:
         Returns:
             bytes: The serialized data.
         """
+
+        def default(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            raise TypeError
+
         # For large numbers, we need to use json instead of orjson to serialize the data
         # to avoid exceeding 64-bit integer limit
         # https://github.com/ijl/orjson/issues/301
         try:
-            return orjson.dumps(data_dict)
+            return orjson.dumps(data_dict, default=default)
         except TypeError as e:
             if str(e) == "Integer exceeds 64-bit range":
-                return json.dumps(data_dict).encode()
+                return json.dumps(data_dict, default=default).encode()
             else:
                 raise e
 
@@ -801,13 +842,10 @@ class ReplayManager:
         # Add connection-source specific data
         if self.dolphie.connection_source == ConnectionSource.mysql:
             self._add_mysql_specific_data(data_dict)
-        else:
-            data_dict.update(
-                {
-                    "command_stats": self.dolphie.proxysql_command_stats,
-                    "hostgroup_summary": self.dolphie.proxysql_hostgroup_summary,
-                }
-            )
+        elif self.dolphie.connection_source == ConnectionSource.proxysql:
+            self._add_proxysql_specific_data(data_dict)
+        elif self.dolphie.connection_source == ConnectionSource.postgresql:
+            self._add_postgresql_specific_data(data_dict)
 
         # Serialize and compress the data
         data_dict_bytes = self._serialize_data_dict(data_dict)
@@ -959,9 +997,41 @@ class ReplayManager:
             processlist=processlist,
         )
 
+    def _create_postgresql_replay_data(self, timestamp: str, data: dict) -> PostgreSQLReplayData:
+        """Creates a PostgreSQLReplayData object from parsed replay data.
+
+        Args:
+            timestamp: The timestamp of the replay data.
+            data: The parsed data dictionary.
+
+        Returns:
+            PostgreSQLReplayData: The constructed replay data object.
+        """
+        from dolphie.Modules.PostgreSQL import PostgreSQLProcesslistThread
+
+        # Normalize PostgreSQL processlist entries so each has an "id" key.
+        # Recorded data uses "pid", but _build_processlist_from_data keys on "id".
+        raw_processlist = data.get("processlist", []) or []
+        normalized_processlist = []
+        for thread_data in raw_processlist:
+            if isinstance(thread_data, dict) and "id" not in thread_data and "pid" in thread_data:
+                thread_data = {**thread_data, "id": str(thread_data["pid"])}
+            normalized_processlist.append(thread_data)
+
+        processlist = self._build_processlist_from_data(normalized_processlist, PostgreSQLProcesslistThread)
+
+        return PostgreSQLReplayData(
+            timestamp=timestamp,
+            system_utilization=data.get("system_utilization", {}),
+            global_status=data.get("global_status", {}),
+            global_variables=data.get("global_variables", {}),
+            metric_manager=data.get("metric_manager", {}),
+            processlist=processlist,
+        )
+
     def get_next_refresh_interval(
         self,
-    ) -> MySQLReplayData | ProxySQLReplayData | None:
+    ) -> MySQLReplayData | ProxySQLReplayData | PostgreSQLReplayData | None:
         """Gets the next refresh interval's data from the SQLite database and returns it as a ReplayData object.
 
         Returns:
@@ -984,6 +1054,8 @@ class ReplayManager:
             return self._create_mysql_replay_data(timestamp, data)
         elif self.dolphie.connection_source == ConnectionSource.proxysql:
             return self._create_proxysql_replay_data(timestamp, data)
+        elif self.dolphie.connection_source == ConnectionSource.postgresql:
+            return self._create_postgresql_replay_data(timestamp, data)
         else:
             self.dolphie.app.notify("Invalid connection source for replay data", severity="error")
             return None

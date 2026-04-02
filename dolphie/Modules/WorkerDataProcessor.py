@@ -486,7 +486,7 @@ class WorkerDataProcessor:
         """Monitor and notify about read-only status changes."""
         dolphie = tab.dolphie
 
-        if dolphie.connection_source == ConnectionSource.proxysql:
+        if dolphie.connection_source in [ConnectionSource.proxysql, ConnectionSource.postgresql]:
             return
 
         current_ro_status = dolphie.global_variables.get("read_only")
@@ -515,3 +515,19 @@ class WorkerDataProcessor:
             self.app.tab_manager.update_connection_status(tab=tab, connection_status=formatted_ro_status)
         elif dolphie.connection_status == ConnectionStatus.connected:
             self.app.tab_manager.update_connection_status(tab=tab, connection_status=formatted_ro_status)
+
+        dolphie.connection_status = formatted_ro_status
+
+    def process_postgresql_data(self, tab: "Tab"):
+        """Process PostgreSQL data for a given tab."""
+        from dolphie.Modules.PostgreSQL import PostgreSQLDataProcessor
+
+        processor = PostgreSQLDataProcessor(self.app)
+        processor.process_data(tab)
+
+    def refresh_screen_postgresql(self, tab: "Tab"):
+        """Refresh the PostgreSQL screen for a given tab."""
+        from dolphie.Modules.PostgreSQL import PostgreSQLDataProcessor
+
+        processor = PostgreSQLDataProcessor(self.app)
+        processor.refresh_screen(tab)

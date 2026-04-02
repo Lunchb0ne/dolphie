@@ -242,21 +242,30 @@ class WorkerManager:
                 self.app.worker_data_processor.process_mysql_data(tab)
             elif dolphie.connection_source == ConnectionSource.proxysql:
                 self.app.worker_data_processor.process_proxysql_data(tab)
+            elif dolphie.connection_source == ConnectionSource.postgresql:
+                self.app.worker_data_processor.process_postgresql_data(tab)
 
             dolphie.worker_processing_time = (datetime.now().astimezone() - worker_start_time).total_seconds()
 
-            dolphie.metric_manager.refresh_data(
-                worker_start_time=worker_start_time,
-                polling_latency=dolphie.polling_latency,
-                system_utilization=dolphie.system_utilization,
-                global_variables=dolphie.global_variables,
-                global_status=dolphie.global_status,
-                innodb_metrics=dolphie.innodb_metrics,
-                disk_io_metrics=dolphie.disk_io_metrics,
-                metadata_lock_metrics=dolphie.metadata_locks,
-                replication_status=dolphie.replication_status,
-                proxysql_command_stats=dolphie.proxysql_command_stats,
-            )
+            # Refresh metrics - PostgreSQL uses different arguments than MySQL/ProxySQL
+            if dolphie.connection_source == ConnectionSource.postgresql:
+                dolphie.metric_manager.refresh_data(
+                    global_status=dolphie.global_status,
+                    system_utilization=dolphie.system_utilization,
+                )
+            else:
+                dolphie.metric_manager.refresh_data(
+                    worker_start_time=worker_start_time,
+                    polling_latency=dolphie.polling_latency,
+                    system_utilization=dolphie.system_utilization,
+                    global_variables=dolphie.global_variables,
+                    global_status=dolphie.global_status,
+                    innodb_metrics=dolphie.innodb_metrics,
+                    disk_io_metrics=dolphie.disk_io_metrics,
+                    metadata_lock_metrics=dolphie.metadata_locks,
+                    replication_status=dolphie.replication_status,
+                    proxysql_command_stats=dolphie.proxysql_command_stats,
+                )
 
             # We initalize this here so we have the host version from process_{mysql,proxysql}_data
             if not tab.replay_manager:
@@ -345,6 +354,8 @@ class WorkerManager:
                     self.app.worker_data_processor.refresh_screen_mysql(tab)
                 elif dolphie.connection_source == ConnectionSource.proxysql:
                     self.app.worker_data_processor.refresh_screen_proxysql(tab)
+                elif dolphie.connection_source == ConnectionSource.postgresql:
+                    self.app.worker_data_processor.refresh_screen_postgresql(tab)
 
                 # Update the topbar with the latest replay file size
                 if dolphie.record_for_replay:
@@ -420,6 +431,8 @@ class WorkerManager:
                 ReplicationPanel.create_replica_panel(tab)
             elif dolphie.connection_source == ConnectionSource.proxysql:
                 self.app.worker_data_processor.refresh_screen_proxysql(tab)
+            elif dolphie.connection_source == ConnectionSource.postgresql:
+                self.app.worker_data_processor.refresh_screen_postgresql(tab)
 
             tab.toggle_entities_displays()
 
