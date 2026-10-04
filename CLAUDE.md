@@ -64,3 +64,7 @@ Textual TUI for real-time MySQL, MariaDB, and ProxySQL monitoring. Python 3.10+,
 - Panel row assertions need a counter delta between two polls. Induce activity on a side connection and wait on `filtered_data`, not `internal_data`.
 - A new server version belongs in `compose/standalone/docker-compose.yml`, `servers.py`, the CI matrix in `.github/workflows/main.yml`, and the README list.
 - A bug fix includes a regression test that fails on the original behavior.
+
+## This fork
+
+- This fork adds PostgreSQL as a connection source. Its steering is in @AGENTS.md.
