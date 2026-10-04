@@ -1,0 +1,49 @@
+# uv picks the Python version from .python-version
+[tools]
+uv = "latest"
+
+[tasks.install]
+description = "Install dependencies, including the dev group"
+run = "uv sync --all-groups"
+
+[tasks.run]
+description = "Run Dolphie against MySQL"
+usage = 'arg "<uri>" help="Connection URI" default="mysql://root:mysql@localhost:3306"'
+run = "uv run dolphie ${usage_uri}"
+
+[tasks.run-pg]
+description = "Run Dolphie against PostgreSQL"
+usage = 'arg "<uri>" help="Connection URI" default="postgresql://postgres:postgres@localhost:5432"'
+run = "uv run dolphie ${usage_uri}"
+
+[tasks.test]
+description = "Run unit and snapshot tests"
+run = "uv run pytest"
+alias = "t"
+
+[tasks.lint]
+description = "Run ruff"
+run = "uv run ruff check ."
+alias = "l"
+
+[tasks.format]
+description = "Format with ruff"
+run = "uv run ruff format ."
+alias = "f"
+
+[tasks.typecheck]
+description = "Run basedpyright"
+run = "uv run basedpyright"
+
+[tasks.ci]
+description = "Run the checks CI runs before a push"
+run = [
+    "uv run ruff format --check .",
+    "uv run ruff check .",
+    "uv run basedpyright",
+    "uv run pytest",
+]
+
+[tasks.build]
+description = "Build the wheel and sdist"
+run = "uv build"
