@@ -2,6 +2,7 @@ import sys
 
 import pytest
 
+from dolphie.DataTypes import ConnectionSource
 from dolphie.Modules.ArgumentParser import ArgumentParser
 
 CONFIG_FILE = """
@@ -150,3 +151,32 @@ def test_replay_summary_is_off_unless_asked_for(parse_config, tmp_path):
     config_file = tmp_path / "summary.cnf"
     config_file.write_text("[dolphie]\nreplay_summary = true\n")
     assert parse_config("--config-file", str(config_file)).replay_summary is True
+
+
+def test_type_postgresql_selects_postgresql_with_its_default_port(parse_config):
+    config = parse_config("--type", "postgresql", "-h", "pg.example.com")
+
+    assert config.db_type == ConnectionSource.postgresql
+    assert config.port == 5432
+
+
+def test_type_postgresql_keeps_a_port_that_was_given(parse_config):
+    config = parse_config("--type", "postgresql", "-P", "6543")
+
+    assert config.port == 6543
+
+
+@pytest.mark.parametrize(
+    ("args", "expected_type", "expected_port"),
+    [
+        (["postgresql://monitor:secret@pg.example.com"], ConnectionSource.postgresql, 5432),
+        (["proxysql://admin:admin@proxy.example.com"], ConnectionSource.mysql, 6032),
+        # The URI's scheme wins over --type
+        (["--type", "postgresql", "mysql://root@db.example.com:3307"], ConnectionSource.mysql, 3307),
+    ],
+)
+def test_uri_scheme_selects_the_database_type(parse_config, args, expected_type, expected_port):
+    config = parse_config(*args)
+
+    assert config.db_type == expected_type
+    assert config.port == expected_port
