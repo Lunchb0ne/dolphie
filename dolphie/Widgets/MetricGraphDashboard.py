@@ -277,6 +277,9 @@ class MetricGraphDashboard(Widget):
             return dolphie.global_variables.get("innodb_adaptive_hash_index") != "OFF"
         if availability is TabAvailability.REPLICATION:
             return bool(dolphie.replication_status)
+        if availability is TabAvailability.POSTGRESQL_WAL:
+            # pg_stat_wal only exists on PostgreSQL 14+
+            return "wal_records" in dolphie.global_status
         return False
 
     @staticmethod

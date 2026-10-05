@@ -216,7 +216,7 @@ class MetricGroup:
 class SystemCPUMetrics(MetricGroup):
     CPU_Percent: MetricData
     metric_source = MetricSource.SYSTEM_UTILIZATION
-    connection_source = (ConnectionSource.mysql, ConnectionSource.proxysql)
+    connection_source = (ConnectionSource.mysql, ConnectionSource.proxysql, ConnectionSource.postgresql)
 
 
 @dataclass
@@ -224,7 +224,7 @@ class SystemMemoryMetrics(MetricGroup):
     Memory_Total: MetricData
     Memory_Used: MetricData
     metric_source = MetricSource.SYSTEM_UTILIZATION
-    connection_source = (ConnectionSource.mysql, ConnectionSource.proxysql)
+    connection_source = (ConnectionSource.mysql, ConnectionSource.proxysql, ConnectionSource.postgresql)
     value_format = ValueFormat.BYTES
 
 
@@ -233,7 +233,7 @@ class SystemNetworkMetrics(MetricGroup):
     Network_Down: MetricData
     Network_Up: MetricData
     metric_source = MetricSource.SYSTEM_UTILIZATION
-    connection_source = (ConnectionSource.mysql, ConnectionSource.proxysql)
+    connection_source = (ConnectionSource.mysql, ConnectionSource.proxysql, ConnectionSource.postgresql)
     value_format = ValueFormat.BYTES
 
 
@@ -242,7 +242,7 @@ class SystemDiskIOMetrics(MetricGroup):
     Disk_Read: MetricData
     Disk_Write: MetricData
     metric_source = MetricSource.SYSTEM_UTILIZATION
-    connection_source = (ConnectionSource.mysql, ConnectionSource.proxysql)
+    connection_source = (ConnectionSource.mysql, ConnectionSource.proxysql, ConnectionSource.postgresql)
 
 
 @dataclass
@@ -256,7 +256,7 @@ class DMLMetrics(MetricGroup):
     Com_commit: MetricData
     Com_rollback: MetricData
     metric_source = MetricSource.GLOBAL_STATUS
-    connection_source = (ConnectionSource.mysql, ConnectionSource.proxysql)
+    connection_source = (ConnectionSource.mysql, ConnectionSource.proxysql, ConnectionSource.postgresql)
 
 
 @dataclass
@@ -550,6 +550,41 @@ class ProxySQLTotalCommandStats(ProxySQLSELECTCommandStats):
     metric_source = MetricSource.PROXYSQL_TOTAL_COMMAND_STATS
 
 
+@dataclass
+class PostgreSQLTransactionMetrics(MetricGroup):
+    xact_commit: MetricData
+    xact_rollback: MetricData
+    metric_source = MetricSource.GLOBAL_STATUS
+    connection_source = (ConnectionSource.postgresql,)
+
+
+@dataclass
+class PostgreSQLTupleMetrics(MetricGroup):
+    tup_fetched: MetricData
+    tup_returned: MetricData
+    tup_inserted: MetricData
+    tup_updated: MetricData
+    tup_deleted: MetricData
+    metric_source = MetricSource.GLOBAL_STATUS
+    connection_source = (ConnectionSource.postgresql,)
+
+
+@dataclass
+class PostgreSQLWALRecordMetrics(MetricGroup):
+    wal_records: MetricData
+    wal_fpi: MetricData
+    metric_source = MetricSource.GLOBAL_STATUS
+    connection_source = (ConnectionSource.postgresql,)
+
+
+@dataclass
+class PostgreSQLWALBytesMetrics(MetricGroup):
+    wal_bytes: MetricData
+    metric_source = MetricSource.GLOBAL_STATUS
+    connection_source = (ConnectionSource.postgresql,)
+    value_format = ValueFormat.BYTES
+
+
 MetricInstance = (
     SystemCPUMetrics
     | SystemMemoryMetrics
@@ -586,6 +621,10 @@ MetricInstance = (
     | ProxySQLMultiplexEfficiency
     | ProxySQLSELECTCommandStats
     | ProxySQLTotalCommandStats
+    | PostgreSQLTransactionMetrics
+    | PostgreSQLTupleMetrics
+    | PostgreSQLWALRecordMetrics
+    | PostgreSQLWALBytesMetrics
 )
 
 
@@ -628,6 +667,10 @@ class MetricInstances:
     proxysql_queries_data_network: ProxySQLQueriesDataNetwork
     proxysql_select_command_stats: ProxySQLSELECTCommandStats
     proxysql_total_command_stats: ProxySQLTotalCommandStats
+    postgresql_transactions: PostgreSQLTransactionMetrics
+    postgresql_tuples: PostgreSQLTupleMetrics
+    postgresql_wal_records: PostgreSQLWALRecordMetrics
+    postgresql_wal_bytes: PostgreSQLWALBytesMetrics
 
 
 def iter_metric_instances(metrics: MetricInstances) -> Iterator[tuple[str, MetricInstance]]:
@@ -909,6 +952,24 @@ def create_metric_instances() -> MetricInstances:
         ),
         proxysql_select_command_stats=ProxySQLSELECTCommandStats(**_command_stat_metric_data()),
         proxysql_total_command_stats=ProxySQLTotalCommandStats(**_command_stat_metric_data()),
+        postgresql_transactions=PostgreSQLTransactionMetrics(
+            xact_commit=MetricData(label="Commits", color=MetricColor.green),
+            xact_rollback=MetricData(label="Rollbacks", color=MetricColor.red),
+        ),
+        postgresql_tuples=PostgreSQLTupleMetrics(
+            tup_fetched=MetricData(label="Fetched", color=MetricColor.blue),
+            tup_returned=MetricData(label="Returned", color=MetricColor.gray),
+            tup_inserted=MetricData(label="Inserted", color=MetricColor.green),
+            tup_updated=MetricData(label="Updated", color=MetricColor.yellow),
+            tup_deleted=MetricData(label="Deleted", color=MetricColor.red),
+        ),
+        postgresql_wal_records=PostgreSQLWALRecordMetrics(
+            wal_records=MetricData(label="Records", color=MetricColor.blue),
+            wal_fpi=MetricData(label="Full Page Images", color=MetricColor.yellow),
+        ),
+        postgresql_wal_bytes=PostgreSQLWALBytesMetrics(
+            wal_bytes=MetricData(label="Bytes", color=MetricColor.purple, create_switch=False),
+        ),
     )
 
     return metrics

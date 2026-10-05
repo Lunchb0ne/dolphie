@@ -7,9 +7,11 @@ from loguru import logger
 
 from dolphie.DataTypes import ConnectionSource, ConnectionStatus, DatabaseRow, DatabaseScalar, ReplicaRow
 from dolphie.Modules.Functions import coerce_float, coerce_int, coerce_str, host_without_port
+from dolphie.Modules.MySQL import Database
 from dolphie.Modules.PerformanceSchemaMetrics import PerformanceSchemaMetrics
-from dolphie.Modules.Queries import MySQLQueries, ProxySQLQueries
+from dolphie.Modules.Queries import MySQLQueries, PostgreSQLQueries, ProxySQLQueries
 from dolphie.Panels import MetadataLocks as MetadataLocksPanel
+from dolphie.Panels import PostgreSQLProcesslist as PostgreSQLProcesslistPanel
 from dolphie.Panels import Processlist as ProcesslistPanel
 from dolphie.Panels import ProxySQLProcesslist as ProxySQLProcesslistPanel
 from dolphie.Panels import Replication as ReplicationPanel
@@ -289,8 +291,10 @@ class WorkerDataProcessor:
     def process_mysql_data(self, tab: "Tab"):
         """Process MySQL data for a given tab."""
         dolphie = tab.dolphie
+        db = dolphie.main_db_connection
+        assert isinstance(db, Database)
 
-        global_variables = dolphie.main_db_connection.fetch_status_and_variables("variables")
+        global_variables = db.fetch_status_and_variables("variables")
         self.monitor_global_variable_change(tab=tab, old_data=dolphie.global_variables, new_data=global_variables)
         dolphie.global_variables = global_variables
 
@@ -305,7 +309,7 @@ class WorkerDataProcessor:
             dolphie.configure_mysql_variables()
             dolphie.validate_metadata_locks_enabled()
 
-        global_status = dolphie.main_db_connection.fetch_status_and_variables("status")
+        global_status = db.fetch_status_and_variables("status")
         self.monitor_uptime_change(
             tab=tab,
             old_uptime=coerce_int(dolphie.global_status.get("Uptime")),
@@ -319,7 +323,7 @@ class WorkerDataProcessor:
             if fallback_lsn is not None:
                 dolphie.global_status["Innodb_lsn_current"] = fallback_lsn
 
-        dolphie.innodb_metrics = dolphie.main_db_connection.fetch_status_and_variables("innodb_metrics")
+        dolphie.innodb_metrics = db.fetch_status_and_variables("innodb_metrics")
 
         if dolphie.galera_cluster and dolphie.panels.replication.visible:
             dolphie.main_db_connection.execute(MySQLQueries.get_galera_cluster_members)
@@ -509,8 +513,10 @@ class WorkerDataProcessor:
     def process_proxysql_data(self, tab: "Tab"):
         """Process ProxySQL data for a given tab."""
         dolphie = tab.dolphie
+        db = dolphie.main_db_connection
+        assert isinstance(db, Database)
 
-        global_variables = dolphie.main_db_connection.fetch_status_and_variables("variables")
+        global_variables = db.fetch_status_and_variables("variables")
         self.monitor_global_variable_change(tab=tab, old_data=dolphie.global_variables, new_data=global_variables)
         dolphie.global_variables = global_variables
 
@@ -523,7 +529,7 @@ class WorkerDataProcessor:
                 coerce_str(dolphie.global_variables.get("admin-version"))
             )
 
-        global_status = dolphie.main_db_connection.fetch_status_and_variables("mysql_stats")
+        global_status = db.fetch_status_and_variables("mysql_stats")
         self.monitor_uptime_change(
             tab=tab,
             old_uptime=coerce_int(dolphie.global_status.get("ProxySQL_Uptime")),
@@ -609,6 +615,60 @@ class WorkerDataProcessor:
         if dolphie.panels.proxysql_mysql_query_rules.visible:
             dolphie.main_db_connection.execute(ProxySQLQueries.query_rules_summary)
             dolphie.proxysql_mysql_query_rules = dolphie.main_db_connection.fetchall()
+
+    def process_postgresql_data(self, tab: "Tab"):
+        """Process PostgreSQL data for a given tab."""
+        dolphie = tab.dolphie
+        db = dolphie.main_db_connection
+
+        db.execute(PostgreSQLQueries.settings)
+        global_variables: dict[str, int | str] = {
+            coerce_str(row.get("name")): coerce_str(row.get("setting")) for row in db.fetchall()
+        }
+        self.monitor_global_variable_change(tab=tab, old_data=dolphie.global_variables, new_data=global_variables)
+        dolphie.global_variables = global_variables
+
+        if dolphie.connection_status == ConnectionStatus.connecting:
+            # Called from worker thread, use call_from_thread
+            self.app.call_from_thread(
+                self.app.tab_manager.update_connection_status, tab=tab, connection_status=ConnectionStatus.connected
+            )
+            # Distro builds append to the version, i.e. 16.4 (Ubuntu 16.4-1.pgdg24.04+1)
+            dolphie.host_version = coerce_str(global_variables.get("server_version")).split(" ", 1)[0]
+
+        global_status: dict[str, int | float | str] = {}
+        db.execute(PostgreSQLQueries.global_stats)
+        global_status.update({key: coerce_int(value) for key, value in db.fetchone().items()})
+
+        # pg_stat_wal exists on PostgreSQL 14+
+        if coerce_int(global_variables.get("server_version_num")) >= 140000:
+            db.execute(PostgreSQLQueries.wal_stats)
+            global_status.update({key: coerce_int(value) for key, value in db.fetchone().items()})
+
+        db.execute(PostgreSQLQueries.connection_stats)
+        global_status.update({key: coerce_int(value) for key, value in db.fetchone().items()})
+
+        db.execute(PostgreSQLQueries.server_state)
+        server_state = db.fetchone()
+        global_status["Uptime"] = coerce_int(server_state.get("uptime"))
+        global_status["in_recovery"] = coerce_int(server_state.get("in_recovery"))
+
+        # PostgreSQL has no Queries counter, so the sparkline graphs the sum of tuple operations
+        global_status["Queries"] = sum(
+            coerce_int(global_status.get(key))
+            for key in ("tup_returned", "tup_fetched", "tup_inserted", "tup_updated", "tup_deleted")
+        )
+        dolphie.global_status = global_status
+
+        if dolphie.panels.processlist.visible:
+            dolphie.processlist_threads = PostgreSQLProcesslistPanel.fetch_data(tab)
+
+        db.execute(PostgreSQLQueries.replication)
+        dolphie.postgresql_replication = db.fetchall()
+
+        if dolphie.panels.dashboard.visible:
+            db.execute(PostgreSQLQueries.table_health)
+            dolphie.postgresql_table_health = db.fetchall()
 
     def refresh_screen(self, tab: "Tab"):
         """Refresh the screen for a given tab, regardless of connection source."""
@@ -718,7 +778,7 @@ class WorkerDataProcessor:
         """Monitor and notify about read-only status changes."""
         dolphie = tab.dolphie
 
-        if dolphie.connection_source == ConnectionSource.proxysql:
+        if dolphie.connection_source in [ConnectionSource.proxysql, ConnectionSource.postgresql]:
             return
 
         current_ro_status = dolphie.global_variables.get("read_only")

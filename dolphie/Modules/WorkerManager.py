@@ -11,7 +11,7 @@ from dolphie.DataTypes import ConnectionSource, ConnectionStatus
 from dolphie.Modules.Functions import coerce_float, coerce_str
 from dolphie.Modules.ManualException import ManualException
 from dolphie.Modules.MetricDefinitions import MetricData, MetricValue, parse_metric_datetime
-from dolphie.Modules.ReplayManager import MySQLReplayData, ProxySQLReplayData, ReplayManager
+from dolphie.Modules.ReplayManager import MySQLReplayData, PostgreSQLReplayData, ProxySQLReplayData, ReplayManager
 from dolphie.Modules.WorkerDataProcessor import is_group_replication_primary
 from dolphie.Panels import Replication as ReplicationPanel
 
@@ -161,6 +161,16 @@ class WorkerManager:
                 dolphie.processlist_threads = dict(replay_event_data.processlist)
 
                 connection_source_metrics = {"proxysql_command_stats": dolphie.proxysql_command_stats}
+            elif dolphie.connection_source == ConnectionSource.postgresql:
+                if not isinstance(replay_event_data, PostgreSQLReplayData):
+                    raise TypeError("PostgreSQL replay returned a non-PostgreSQL payload")
+
+                dolphie.host_version = coerce_str(dolphie.global_variables.get("server_version")).split(" ", 1)[0]
+                dolphie.postgresql_replication = replay_event_data.replication
+                dolphie.postgresql_table_health = replay_event_data.table_health
+                dolphie.processlist_threads = dict(replay_event_data.processlist)
+
+                connection_source_metrics = {}
             else:
                 raise ValueError(f"Unsupported replay connection source: {dolphie.connection_source}")
 
@@ -289,6 +299,8 @@ class WorkerManager:
                 self.app.worker_data_processor.process_mysql_data(tab)
             elif dolphie.connection_source == ConnectionSource.proxysql:
                 self.app.worker_data_processor.process_proxysql_data(tab)
+            elif dolphie.connection_source == ConnectionSource.postgresql:
+                self.app.worker_data_processor.process_postgresql_data(tab)
 
             dolphie.worker_processing_time = (datetime.now().astimezone() - worker_start_time).total_seconds()
 
@@ -338,7 +350,8 @@ class WorkerManager:
 
         dolphie = tab.dolphie
 
-        if dolphie.panels.replication.visible:
+        # PostgreSQL's replication panel lists standbys from the main worker instead of connecting to replicas
+        if dolphie.panels.replication.visible and dolphie.connection_source == ConnectionSource.mysql:
             active_tab = self.app.tab_manager.active_tab
             if active_tab is None or tab.id != active_tab.id:
                 return
@@ -460,7 +473,7 @@ class WorkerManager:
                     )
                     return
 
-                if dolphie.panels.replication.visible:
+                if dolphie.panels.replication.visible and dolphie.connection_source == ConnectionSource.mysql:
                     ReplicationPanel.create_replica_panel(tab)
 
                 tab.replicas_worker_timer = self.app.set_timer(

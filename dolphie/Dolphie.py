@@ -20,6 +20,7 @@ from dolphie.Modules.ArgumentParser import Config
 from dolphie.Modules.Functions import coerce_int, coerce_str, is_sqlite_database, load_host_cache_file
 from dolphie.Modules.MySQL import ConnectionSource, Database
 from dolphie.Modules.PerformanceSchemaMetrics import PerformanceSchemaMetrics
+from dolphie.Modules.PostgreSQL import PostgreSQLDatabase
 from dolphie.Modules.Queries import MySQLQueries
 from dolphie.Modules.Theme import themed_content
 
@@ -195,10 +196,10 @@ class Dolphie:
         self.proxysql_mysql_query_rules: list[DataTypes.DatabaseRow] = []
         self.proxysql_per_second_data: dict[str, dict[str, int]] = {}
         self.proxysql_command_stats: list[dict[str, int | str]] = []
-        self.processlist_threads: dict[int, DataTypes.ProcesslistThread | DataTypes.ProxySQLProcesslistThread] = {}
-        self.processlist_threads_snapshot: dict[
-            int, DataTypes.ProcesslistThread | DataTypes.ProxySQLProcesslistThread
-        ] = {}
+        self.postgresql_replication: list[DataTypes.DatabaseRow] = []
+        self.postgresql_table_health: list[DataTypes.DatabaseRow] = []
+        self.processlist_threads: dict[int, DataTypes.AnyProcesslistThread] = {}
+        self.processlist_threads_snapshot: dict[int, DataTypes.AnyProcesslistThread] = {}
 
         # These are for group replication in replication panel
         self.is_group_replication_primary: bool = False
@@ -222,7 +223,7 @@ class Dolphie:
         self.filter_dropdown_values: dict[str, set] = {field: set() for field in ("user", "db", "host", "hostgroup")}
 
         # Types of hosts
-        self.connection_source: DataTypes.ConnectionSourceType = ConnectionSource.mysql  # mysql, proxysql
+        self.connection_source: DataTypes.ConnectionSourceType = self.config.db_type  # mysql, proxysql, postgresql
         self.connection_source_alt: DataTypes.ConnectionSourceType = ConnectionSource.mysql  # mariadb
         self.galera_cluster: bool = False
         self.group_replication: bool = False
@@ -271,7 +272,18 @@ class Dolphie:
         except socket.gaierror:
             self.enable_system_utilization = False
 
-    def _create_connection(self, save_connection_id: bool = True) -> Database:
+    def _create_connection(self, save_connection_id: bool = True) -> Database | PostgreSQLDatabase:
+        if self.connection_source == ConnectionSource.postgresql:
+            return PostgreSQLDatabase(
+                app=self.app,
+                host=self.host,
+                user=self.user,
+                password=self.password,
+                port=self.port,
+                save_connection_id=save_connection_id,
+                daemon_mode=self.daemon_mode,
+            )
+
         return Database(
             app=self.app,
             host=self.host,
@@ -295,8 +307,8 @@ class Dolphie:
             raise RuntimeError("Database connection did not report a connection source")
         self.connection_source = connection_source
         self.connection_source_alt = self.connection_source
-        if self.connection_source == ConnectionSource.proxysql:
-            self.host_distro = ConnectionSource.proxysql
+        if self.connection_source in (ConnectionSource.proxysql, ConnectionSource.postgresql):
+            self.host_distro = self.connection_source
             self.host_with_port = f"{self.host}:{self.port}"
 
         self.metric_manager.connection_source = self.connection_source

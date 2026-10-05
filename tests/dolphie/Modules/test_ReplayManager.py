@@ -12,7 +12,12 @@ import orjson
 import pytest
 import zstandard as zstd
 
-from dolphie.DataTypes import ConnectionSource, ProcesslistThread, ProxySQLProcesslistThread
+from dolphie.DataTypes import (
+    ConnectionSource,
+    PostgreSQLProcesslistThread,
+    ProcesslistThread,
+    ProxySQLProcesslistThread,
+)
 from dolphie.Dolphie import Dolphie
 from dolphie.Modules.Functions import coerce_int
 from dolphie.Modules.ReplayManager import MySQLReplayData, ReplayManager
@@ -323,6 +328,31 @@ def test_payload_fields_are_coerced_to_the_containers_panels_expect() -> None:
 
     empty = manager._create_mysql_replay_data("2026-01-01 00:00:00", {})
     assert empty.processlist == {}
+
+
+def test_postgresql_payload_round_trips_standbys_table_health_and_backends() -> None:
+    manager = ReplayManager.__new__(ReplayManager)
+    last_vacuum = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    recorded = {
+        "global_status": {"xact_commit": 10},
+        "global_variables": {"server_version": "16.4"},
+        "replication": [{"host": "10.0.0.2", "replay_lag": 0}],
+        "table_health": [{"table": "orders", "n_dead_tup": 5, "last_vacuum": last_vacuum}],
+        "processlist": [{"id": 4242, "user": "app", "state": "active", "time": 2, "query": "SELECT 1"}, {"pid": 1}],
+        "metric_manager": {"datetimes": []},
+    }
+
+    data = manager._create_postgresql_replay_data(
+        "2026-01-01 00:00:00", orjson.loads(manager._serialize_data_dict(recorded))
+    )
+
+    assert data.replication == [{"host": "10.0.0.2", "replay_lag": 0}]
+    assert data.table_health[0]["last_vacuum"] == "2026-01-01T00:00:00+00:00"
+    assert list(data.processlist) == [4242]
+    assert isinstance(data.processlist[4242], PostgreSQLProcesslistThread)
+
+    empty = manager._create_postgresql_replay_data("2026-01-01 00:00:00", {"replication": None, "table_health": {}})
+    assert (empty.replication, empty.table_health, empty.processlist) == ([], [], {})
 
 
 def test_metadata_refreshes_after_the_daemon_purges_the_head_of_the_file(tmp_path: Path) -> None:

@@ -50,10 +50,12 @@ $ docker exec -it dolphie dolphie --tab-setup
 
 ```
 positional arguments:
-  uri                   Use a URI string for credentials (mysql/proxysql) - format: mysql://user:password@host:port (port is optional with default 3306, or 6032 for ProxySQL)
+  uri                   Use a URI string for credentials (mysql/proxysql/postgresql) - format: mysql://user:password@host:port (port is optional with default 3306, 6032 for ProxySQL, or 5432 for PostgreSQL)
 
 options:
   --help                show this help message and exit
+  --type {mysql,postgresql}
+                        Database type to connect to. ProxySQL is detected from a mysql connection, and a URI's scheme overrides this [default: mysql]
   --tab-setup           Start Dolphie by showing the Tab Setup modal instead of automatically connecting with the specified options
   -C , --cred-profile   Credential profile to use. See below for more information
   -u , --user           Username

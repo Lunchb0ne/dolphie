@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rich.syntax import Syntax
 
-from dolphie.DataTypes import ProcesslistThread, ProxySQLProcesslistThread
+from dolphie.DataTypes import AnyProcesslistThread, ProcesslistThread
 from dolphie.Modules.Functions import (
     coerce_int,
     coerce_str,
@@ -151,7 +151,7 @@ def create_panel(tab: Tab) -> None:
     # Has to happen before the filtering below so replays remember the values being filtered out
     dolphie.record_filter_dropdown_values()
 
-    threads_to_render: dict[int, ProcesslistThread | ProxySQLProcesslistThread] = {}
+    threads_to_render: dict[int, AnyProcesslistThread] = {}
     # We use filter here for replays since the original way requires changing WHERE clause
     if dolphie.replay_file:
         for thread_id, thread in dolphie.processlist_threads.items():
@@ -261,7 +261,7 @@ def create_panel(tab: Tab) -> None:
     tab.processlist_title.update(title)
 
 
-def fetch_data(tab: Tab) -> dict[int, ProcesslistThread | ProxySQLProcesslistThread]:
+def fetch_data(tab: Tab) -> dict[int, AnyProcesslistThread]:
     dolphie = tab.dolphie
 
     # Determine query and column names based on whether performance_schema is used

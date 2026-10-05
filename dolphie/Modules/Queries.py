@@ -743,3 +743,99 @@ class MySQLQueries:
     innodb_status: str = "SHOW ENGINE INNODB STATUS"
     show_replicas: str = "SHOW REPLICAS"
     show_slave_hosts: str = "SHOW SLAVE HOSTS"
+
+
+@dataclass
+class PostgreSQLQueries:
+    # Aggregates are cast to bigint so psycopg2 returns int instead of Decimal, which orjson can't serialize
+    settings: str = "SELECT name, setting FROM pg_settings"
+    server_state: str = """
+        SELECT
+            extract(epoch from current_timestamp - pg_postmaster_start_time())::bigint AS uptime,
+            pg_is_in_recovery()::int AS in_recovery
+    """
+
+    # $1 is replaced with the filters for idle backends
+    activity: str = """
+        SELECT
+            pid AS id,
+            usename AS user,
+            datname AS db,
+            host(client_addr) AS host,
+            state,
+            COALESCE(extract(epoch from (now() - query_start))::int, 0) AS time,
+            wait_event_type || ':' || wait_event AS wait_event,
+            query
+        FROM pg_stat_activity
+        WHERE
+            pid != pg_backend_pid()
+            AND backend_type = 'client backend'
+            AND $1
+    """
+
+    connection_stats: str = """
+        SELECT
+            COUNT(*) FILTER (WHERE state = 'active') AS active_connections,
+            COUNT(*) FILTER (WHERE state = 'idle') AS idle_connections,
+            COUNT(*) AS total_connections
+        FROM pg_stat_activity
+        WHERE pid != pg_backend_pid() AND backend_type = 'client backend'
+    """
+
+    global_stats: str = """
+        SELECT
+            sum(xact_commit)::bigint AS xact_commit,
+            sum(xact_rollback)::bigint AS xact_rollback,
+            sum(tup_returned)::bigint AS tup_returned,
+            sum(tup_fetched)::bigint AS tup_fetched,
+            sum(tup_inserted)::bigint AS tup_inserted,
+            sum(tup_updated)::bigint AS tup_updated,
+            sum(tup_deleted)::bigint AS tup_deleted,
+            sum(conflicts)::bigint AS conflicts,
+            sum(deadlocks)::bigint AS deadlocks
+        FROM pg_stat_database
+    """
+
+    # PostgreSQL 14+
+    wal_stats: str = """
+        SELECT
+            wal_records,
+            wal_fpi,
+            wal_bytes::bigint AS wal_bytes,
+            wal_buffers_full
+        FROM pg_stat_wal
+    """
+
+    # Standbys streaming from this server. A cascading standby can't call pg_current_wal_lsn(), so lag is
+    # measured from what it has replayed
+    replication: str = """
+        SELECT
+            pid,
+            host(client_addr) AS host,
+            usename AS user,
+            application_name,
+            state,
+            sync_state,
+            pg_wal_lsn_diff(base.lsn, write_lsn)::bigint AS write_lag,
+            pg_wal_lsn_diff(base.lsn, flush_lsn)::bigint AS flush_lag,
+            pg_wal_lsn_diff(base.lsn, replay_lsn)::bigint AS replay_lag
+        FROM
+            pg_stat_replication,
+            (
+                SELECT
+                    CASE WHEN pg_is_in_recovery() THEN pg_last_wal_replay_lsn() ELSE pg_current_wal_lsn() END AS lsn
+            ) AS base
+    """
+
+    # Tables with the most dead tuples in the connected database
+    table_health: str = """
+        SELECT
+            relname AS table,
+            n_live_tup,
+            n_dead_tup,
+            GREATEST(last_vacuum, last_autovacuum) AS last_vacuum,
+            GREATEST(last_analyze, last_autoanalyze) AS last_analyze
+        FROM pg_stat_user_tables
+        ORDER BY n_dead_tup DESC
+        LIMIT 20
+    """
